@@ -33,8 +33,8 @@ class Dact:
         # ## Shape parameters ##
         # ######################
         show_caps : bool    = True
-        nrows : int         = 5  # key rows
-        ncols : int         = 6  # key columns
+        nrows : int         = 6  # key rows
+        ncols : int         = 5  # key columns
         #column_style        ='fixed' # options include :standard, :orthographic, and :fixed. Moved to constructor
         alpha : float       = pi / 12.0  # curvature of the columns
         beta : float        = pi / 36.0  # curvature of the rows
@@ -63,12 +63,6 @@ class Dact:
         fixed_x = [-41.5, -22.5, 0, 20.3, 41.4, 65.5, 89.6]  # relative to the middle finger
         fixed_z = [12.1, 8.3, 0, 5, 10.7, 14.5, 17.5]
         fixed_tenting = CalcUtils.deg2rad(0)
-        #######################
-        ## General variables ##
-        #######################
-        lastrow = nrows - 1
-        cornerrow = lastrow - 1
-        lastcol = ncols - 1
 
         ####################
         ## Web Connectors ##
@@ -132,7 +126,15 @@ class Dact:
         script_print_shapes : bool = False
 
     def __init__(self, config: Config):
+
         self.config = config
+
+        #######################
+        ## General variables ##
+        #######################
+        self.lastrow = config.nrows - 1
+        self.cornerrow = self.lastrow - 1
+        self.lastcol = config.ncols - 1
 
         ## Settings for column_style == :fixed
         ## The defaults roughly match Maltron settings
@@ -413,11 +415,11 @@ class Dact:
         if self.column_style == "orthographic":
             column_z_delta = self.column_radius * (1 - np.cos(column_angle))
             shape = translate_fn(shape, [0, 0, -self.row_radius])
-            shape = rotate_x_fn(shape, self.alpha * (self.centerrow - row))
+            shape = rotate_x_fn(shape, self.config.alpha * (self.config.centerrow - row))
             shape = translate_fn(shape, [0, 0, self.row_radius])
             shape = rotate_y_fn(shape, column_angle)
             shape = translate_fn(
-                shape, [-(column - self.centercol) * self.column_x_delta, 0, self.column_z_delta]
+                shape, [-(column - self.config.centercol) * self.column_x_delta, 0, column_z_delta]
             )
             shape = translate_fn(shape, self.column_offset(column))
 
@@ -475,8 +477,10 @@ class Dact:
         holes = []
         for column in range(self.config.ncols):
             for row in range(self.config.nrows):
-                if (column in [2, 3]) or (not row == self.config.lastrow):
+                if (column in [2, 3]) or (not row == self.lastrow):
                     holes.append(self.key_place(self.single_plate(), column, row))
+                # Georges add different locations for holes here? or in key_place?
+
 
         shape = self.union(holes)
 
@@ -486,7 +490,7 @@ class Dact:
         caps = None
         for column in range(self.config.ncols):
             for row in range(self.config.nrows):
-                if (column in [2, 3]) or (not row == self.config.lastrow):
+                if (column in [2, 3]) or (not row == self.lastrow):
                     if caps is None:
                         caps = self.key_place(self.sa_cap(), column, row)
                     else:
@@ -528,7 +532,7 @@ class Dact:
         self.print_fu('connectors()')
         hulls = []
         for column in range(self.config.ncols - 1):
-            for row in range(self.config.lastrow):  # need to consider last_row?
+            for row in range(self.lastrow):  # need to consider last_row?
                 # for row in range(nrows):  # need to consider last_row?
                 places = []
                 places.append(self.key_place(self.web_post_tl(), column + 1, row))
@@ -539,7 +543,7 @@ class Dact:
 
         for column in range(self.config.ncols):
             # for row in range(nrows-1):
-            for row in range(self.config.cornerrow):
+            for row in range(self.cornerrow):
                 places = []
                 places.append(self.key_place(self.web_post_bl(), column, row))
                 places.append(self.key_place(self.web_post_br(), column, row))
@@ -549,7 +553,7 @@ class Dact:
 
         for column in range(self.config.ncols - 1):
             # for row in range(nrows-1):  # need to consider last_row?
-            for row in range(self.config.cornerrow):  # need to consider last_row?
+            for row in range(self.cornerrow):  # need to consider last_row?
                 places = []
                 places.append(self.key_place(self.web_post_br(), column, row))
                 places.append(self.key_place(self.web_post_tr(), column, row + 1))
@@ -565,7 +569,7 @@ class Dact:
 
     def thumborigin(self):
         # self.print_fu('thumborigin()')
-        origin = self.key_position([ self.config.mount_width / 2, -(self.config.mount_height / 2), 0], 1, self.config.cornerrow)
+        origin = self.key_position([ self.config.mount_width / 2, -(self.config.mount_height / 2), 0], 1, self.cornerrow)
         for i in range(len(origin)):
             origin[i] = origin[i] + self.config.thumb_offsets[i]
         return origin
@@ -773,26 +777,26 @@ class Dact:
             self.triangle_hulls(
                 [
                     self.thumb_tl_place(self.thumb_post_tl()),
-                    self.key_place(self.web_post_bl(), 0, self.config.cornerrow),
+                    self.key_place(self.web_post_bl(), 0, self.cornerrow),
                     self.thumb_tl_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_br(), 0, self.config.cornerrow),
+                    self.key_place(self.web_post_br(), 0, self.cornerrow),
                     self.thumb_tr_place(self.thumb_post_tl()),
-                    self.key_place(self.web_post_bl(), 1, self.config.cornerrow),
+                    self.key_place(self.web_post_bl(), 1, self.cornerrow),
                     self.thumb_tr_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_br(), 1, self.config.cornerrow),
-                    self.key_place(self.web_post_tl(), 2, self.config.lastrow),
-                    self.key_place(self.web_post_bl(), 2, self.config.lastrow),
+                    self.key_place(self.web_post_br(), 1, self.cornerrow),
+                    self.key_place(self.web_post_tl(), 2, self.lastrow),
+                    self.key_place(self.web_post_bl(), 2, self.lastrow),
                     self.thumb_tr_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_bl(), 2, self.config.lastrow),
+                    self.key_place(self.web_post_bl(), 2, self.lastrow),
                     self.thumb_tr_place(self.thumb_post_br()),
-                    self.key_place(self.web_post_br(), 2, self.config.lastrow),
-                    self.key_place(self.web_post_bl(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_tr(), 2, self.config.lastrow),
-                    self.key_place(self.web_post_tl(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_bl(), 3, self.config.cornerrow),
-                    self.key_place(self.web_post_tr(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_br(), 3, self.config.cornerrow),
-                    self.key_place(self.web_post_bl(), 4, self.config.cornerrow),
+                    self.key_place(self.web_post_br(), 2, self.lastrow),
+                    self.key_place(self.web_post_bl(), 3, self.lastrow),
+                    self.key_place(self.web_post_tr(), 2, self.lastrow),
+                    self.key_place(self.web_post_tl(), 3, self.lastrow),
+                    self.key_place(self.web_post_bl(), 3, self.cornerrow),
+                    self.key_place(self.web_post_tr(), 3, self.lastrow),
+                    self.key_place(self.web_post_br(), 3, self.cornerrow),
+                    self.key_place(self.web_post_bl(), 4, self.cornerrow),
                 ]
             )
         )
@@ -800,12 +804,12 @@ class Dact:
         hulls.append(
             self.triangle_hulls(
                 [
-                    self.key_place(self.web_post_br(), 1, self.config.cornerrow),
-                    self.key_place(self.web_post_tl(), 2, self.config.lastrow),
-                    self.key_place(self.web_post_bl(), 2, self.config.cornerrow),
-                    self.key_place(self.web_post_tr(), 2, self.config.lastrow),
-                    self.key_place(self.web_post_br(), 2, self.config.cornerrow),
-                    self.key_place(self.web_post_bl(), 3, self.config.cornerrow),
+                    self.key_place(self.web_post_br(), 1, self.cornerrow),
+                    self.key_place(self.web_post_tl(), 2, self.lastrow),
+                    self.key_place(self.web_post_bl(), 2, self.cornerrow),
+                    self.key_place(self.web_post_tr(), 2, self.lastrow),
+                    self.key_place(self.web_post_br(), 2, self.cornerrow),
+                    self.key_place(self.web_post_bl(), 3, self.cornerrow),
                 ]
             )
         )
@@ -813,10 +817,10 @@ class Dact:
         hulls.append(
             self.triangle_hulls(
                 [
-                    self.key_place(self.web_post_tr(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_br(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_tr(), 3, self.config.lastrow),
-                    self.key_place(self.web_post_bl(), 4, self.config.cornerrow),
+                    self.key_place(self.web_post_tr(), 3, self.lastrow),
+                    self.key_place(self.web_post_br(), 3, self.lastrow),
+                    self.key_place(self.web_post_tr(), 3, self.lastrow),
+                    self.key_place(self.web_post_bl(), 4, self.cornerrow),
                 ]
             )
         )
@@ -939,7 +943,7 @@ class Dact:
                 x, 0, 0, 1, self.web_post_tl(), x - 1, 0, 0, 1, self.web_post_tr()
             ))
         shape = shape.union(self.key_wall_brace(
-            self.config.lastcol, 0, 0, 1, self.web_post_tr(), self.config.lastcol, 0, 1, 0, self.web_post_tr()
+            self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
         ))
         return shape
 
@@ -949,25 +953,26 @@ class Dact:
         shape = cq.Workplane('XY')
         shape = shape.union(
             self.key_wall_brace(
-                self.config.lastcol, y, 1, 0, self.web_post_tr(), self.config.lastcol, y, 1, 0, self.web_post_br()
+                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
             )
         )
-        for i in range(self.config.lastrow - 1):
+        for i in range(self.lastrow - 1):
             y = i + 1
             shape = shape.union(self.key_wall_brace(
-                self.config.lastcol, y, 1, 0, self.web_post_tr(), self.config.lastcol, y, 1, 0, self.web_post_br()
+                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
             ))
             shape = shape.union(self.key_wall_brace(
-                self.config.lastcol, y, 1, 0, self.web_post_br(), self.config.lastcol, y - 1, 1, 0, self.web_post_tr()
+                self.lastcol, y, 1, 0, self.web_post_br(), self.lastcol, y - 1, 1, 0, self.web_post_tr()
             ))
+
         shape = shape.union(self.key_wall_brace(
-            self.config.lastcol,
-            self.config.cornerrow,
+            self.lastcol,
+            self.cornerrow,
             0,
             -1,
             self.web_post_br(),
-            self.config.lastcol,
-            self.config.cornerrow,
+            self.lastcol,
+            self.cornerrow,
             1,
             0,
             self.web_post_br(),
@@ -999,7 +1004,7 @@ class Dact:
             self.web_post(),
         ))
 
-        for i in range(self.config.lastrow):
+        for i in range(self.lastrow):
             y = i
             temp_shape1 = self.wall_brace(
                 (lambda sh: self.left_key_place(sh, y, 1)),
@@ -1020,7 +1025,7 @@ class Dact:
             shape = shape.union(temp_shape1)
             shape = shape.union(temp_shape2)
 
-        for i in range(self.config.lastrow - 1):
+        for i in range(self.lastrow - 1):
             y = i + 1
             temp_shape1 = self.wall_brace(
                 (lambda sh: self.left_key_place(sh, y - 1, -1)),
@@ -1048,24 +1053,24 @@ class Dact:
         shape = cq.Workplane('XY')
         shape = shape.union(
             self.key_wall_brace(
-                self.config.lastcol, 0, 0, 1, self.web_post_tr(), self.config.lastcol, 0, 1, 0, self.web_post_tr()
+                self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
             )
         )
         shape = shape.union(self.key_wall_brace(
-            3, self.config.lastrow, 0, -1, self.web_post_bl(), 3, self.config.lastrow, 0.5, -1, self.web_post_br()
+            3, self.lastrow, 0, -1, self.web_post_bl(), 3, self.lastrow, 0.5, -1, self.web_post_br()
         ))
         shape = shape.union(self.key_wall_brace(
-            3, self.config.lastrow, 0.5, -1, self.web_post_br(), 4, self.config.cornerrow, 1, -1, self.web_post_bl()
+            3, self.lastrow, 0.5, -1, self.web_post_br(), 4, self.cornerrow, 1, -1, self.web_post_bl()
         ))
         for i in range(self.config.ncols - 4):
             x = i + 4
             shape = shape.union(self.key_wall_brace(
-                x, self.config.cornerrow, 0, -1, self.web_post_bl(), x, self.config.cornerrow, 0, -1, self.web_post_br()
+                x, self.cornerrow, 0, -1, self.web_post_bl(), x, self.cornerrow, 0, -1, self.web_post_br()
             ))
         for i in range(self.config.ncols - 5):
             x = i + 5
             shape = shape.union(self.key_wall_brace(
-                x, self.config.cornerrow, 0, -1, self.web_post_bl(), x - 1, self.config.cornerrow, 0, -1, self.web_post_br()
+                x, self.cornerrow, 0, -1, self.web_post_bl(), x - 1, self.cornerrow, 0, -1, self.web_post_br()
             ))
 
         return shape
@@ -1119,7 +1124,7 @@ class Dact:
             0,
             -1,
             self.thumb_post_br(),
-            (lambda sh: self.key_place(sh, 3, self.config.lastrow)),
+            (lambda sh: self.key_place(sh, 3, self.lastrow)),
             0,
             -1,
             self.web_post_bl(),
@@ -1134,10 +1139,10 @@ class Dact:
         shape = shape.union(self.bottom_hull(
             [
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
                 ),
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
                 ),
                 self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate2(-0.3, 1))),
                 self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate3(-0.3, 1))),
@@ -1150,10 +1155,10 @@ class Dact:
             self.hull_from_shapes(
                 [
                     self.left_key_place(
-                        self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.config.cornerrow, -1
+                        self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
                     ),
                     self.left_key_place(
-                        self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.config.cornerrow, -1
+                        self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
                     ),
                     self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate2(-0.3, 1))),
                     self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate3(-0.3, 1))),
@@ -1164,15 +1169,15 @@ class Dact:
 
         shape = shape.union(self.hull_from_shapes(
             [
-                self.left_key_place(self.web_post(), self.config.cornerrow, -1),
+                self.left_key_place(self.web_post(), self.cornerrow, -1),
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1
                 ),
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
                 ),
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
                 ),
                 self.thumb_tl_place(self.thumb_post_tl()),
             ]
@@ -1180,12 +1185,12 @@ class Dact:
 
         shape = shape.union(self.hull_from_shapes(
             [
-                self.left_key_place(self.web_post(), self.config.cornerrow, -1),
+                self.left_key_place(self.web_post(), self.cornerrow, -1),
                 self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.config.cornerrow, -1
+                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1
                 ),
-                self.key_place(self.web_post_bl(), 0, self.config.cornerrow),
-                self.key_place(self.translate(self.web_post_bl(), self.wall_locate1(-1, 0)), 0, self.config.cornerrow),
+                self.key_place(self.web_post_bl(), 0, self.cornerrow),
+                self.key_place(self.translate(self.web_post_bl(), self.wall_locate1(-1, 0)), 0, self.cornerrow),
                 self.thumb_tl_place(self.thumb_post_tl()),
             ]
         ))
@@ -1337,10 +1342,10 @@ class Dact:
 
     def screw_insert(self, column, row, bottom_radius, top_radius, height):
         self.print_fu('screw_insert()')
-        shift_right = column == self.config.lastcol
+        shift_right = column == self.lastcol
         shift_left = column == 0
         shift_up = (not (shift_right or shift_left)) and (row == 0)
-        shift_down = (not (shift_right or shift_left)) and (row >= self.config.lastrow)
+        shift_down = (not (shift_right or shift_left)) and (row >= self.lastrow)
 
         if shift_up:
             position = self.key_position(
@@ -1374,10 +1379,10 @@ class Dact:
         self.print_fu('screw_insert_all_shapes()')
         shape = (
             self.screw_insert(0, 0, bottom_radius, top_radius, height),
-            self.screw_insert(0, self.config.lastrow, bottom_radius, top_radius, height),
-            self.screw_insert(2, self.config.lastrow + 0.3, bottom_radius, top_radius, height),
+            self.screw_insert(0, self.lastrow, bottom_radius, top_radius, height),
+            self.screw_insert(2, self.lastrow + 0.3, bottom_radius, top_radius, height),
             self.screw_insert(3, 0, bottom_radius, top_radius, height),
-            self.screw_insert(self.config.lastcol, 1, bottom_radius, top_radius, height),
+            self.screw_insert(self.lastcol, 1, bottom_radius, top_radius, height),
         )
 
         return shape
@@ -1418,8 +1423,8 @@ class Dact:
         shape = shape.union(thumb_ml_place(wire_post(-1, 6).translate([0, 0, -2.5])))
         shape = shape.union(thumb_ml_place(wire_post(1, 0).translate([5, 0, -2])))
 
-        for column in range(self.config.lastcol):
-            for row in range(self.config.lastrow - 1):
+        for column in range(self.lastcol):
+            for row in range(self.lastrow - 1):
                 shape = union([
                     shape,
                     key_place(wire_post(1, 0).translate([-5, 0, 0]), column, row),
@@ -1483,7 +1488,7 @@ class Dact:
 
         # Create a box shape that is substraced from the model to
         # cut the keyboard along the XY plane (the box is substracted from model)
-        block = cq.Workplane("XY").box(350, 350, 40)
+        block = cq.Workplane("XY").box(500, 500, 40)
         block = block.translate((0, 0, -20))
         shape = shape.cut(block)
 

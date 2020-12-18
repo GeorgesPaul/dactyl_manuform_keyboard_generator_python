@@ -10,7 +10,7 @@ import os
 
 from scipy.spatial import ConvexHull as sphull
 
-conf1 = dactylutils.Dact.Config(show_caps   = True,
+conf1 = dactylutils.Dact.Config(show_caps   = False,
                                 script_print_shapes = True,
                                  nrows      = 5,
                                  ncols      = 6,
