@@ -212,7 +212,7 @@ ENV/
 /site
 
 # dactyl stuff (mechanical)
-cadquery/
+# cadquery/
 things/
 *.svg
 *.stp
