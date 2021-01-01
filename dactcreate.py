@@ -10,11 +10,14 @@ import os
 
 from scipy.spatial import ConvexHull as sphull
 
-conf1 = dactylutils.Dact.Config(show_caps   = False,
+conf1 = dactylutils.Dact.Config(show_caps   = True,
                                 script_print_shapes = True,
-                                 nrows      = 5,
-                                 ncols      = 6,
-                                 )
+                                nrows      = 6,
+                                ncols      = 7, # row 3 from top, 3 from bottom should have 8 cols on right
+                                thumb_count = 2,
+                                #thumb_offsets = [10, -3, -3], # causes freeze?
+                                #plate_thickness = 2
+                                )
 
 dact_right = dactylutils.Dact(conf1)
 

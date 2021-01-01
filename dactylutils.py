@@ -33,14 +33,25 @@ class Dact:
         # ## Shape parameters ##
         # ######################
         show_caps : bool    = True
-        nrows : int         = 6  # key rows
+        use_wide_pinky : bool = True
+        top_rows_extra_key : bool = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
+        nrows : int         = 6  # key rows TODO: fix bug where more than 6 rows causes memory leak. Half-fixed by making style "standard" instead of ortho
         ncols : int         = 5  # key columns
+        thumb_count : int   = 2  # TODO implement
         #column_style        ='fixed' # options include :standard, :orthographic, and :fixed. Moved to constructor
         alpha : float       = pi / 12.0  # curvature of the columns
         beta : float        = pi / 36.0  # curvature of the rows
         centerrow : int     = nrows - 3  # controls front_back tilt
         centercol : int     = 3  # controls left_right tilt / tenting (higher number is more tenting)
         tenting_angle : float = pi / 12.0  # or, change this for more precise tenting control
+
+        # ; it dictates the location of the thumb cluster.
+        # ; the first member of the vector is x axis, second one y axis,
+        # ; while the last one is y axis.
+        # ; the higher x axis value is, the closer it to the pinky.
+        # ; the higher y axis value is, the closer it to the alphas.
+        # ; the higher z axis value is, the higher it is.
+        # (def thumb-offsets [10 -3 -3])
         thumb_offsets = [6, -3, 7]
         keyboard_z_offset = (
             9  # controls overall height# original=9 with centercol=3# use 16 for centercol=2
@@ -79,7 +90,7 @@ class Dact:
 
         sa_profile_key_height = 12.7
 
-        plate_thickness = 4
+        plate_thickness                = 4
         mount_width = keyswitch_width + 3
         mount_height = keyswitch_height + 3
         mount_thickness = plate_thickness
@@ -143,7 +154,7 @@ class Dact:
         ## NOTE: THIS DOESN'T WORK QUITE LIKE I'D HOPED.
         self.column_style = "fixed"
         if self.config.nrows > 5:
-            self.column_style = "orthographic"
+            self.column_style = "standard" # "orthographic" TODO: fix quick & dirty hack, because orthographic caused memory leak
         else:
             self.column_style = "standard"  # options include :standard, :orthographic, and :fixed
 
@@ -498,10 +509,15 @@ class Dact:
 
         return caps
 
+    # TODO: add wide pinky function
+    # web post functions generate box shapes to work with (Georges)
     def web_post(self):
+        post_size = self.config.post_size
+        web_thickness = self.config.web_thickness
+        plate_thickness = self.config.plate_thickness
         self.print_fu('web_post()')
-        post = cq.Workplane("XY").box(self.config.post_size, self.config.post_size, self.config.web_thickness)
-        post = post.translate((0, 0, self.config.plate_thickness - (self.config.web_thickness / 2)))
+        post = cq.Workplane("XY").box(post_size, post_size, web_thickness)
+        post = post.translate((0, 0, plate_thickness - (web_thickness / 2)))
         return post
 
     def web_post_tr(self):
@@ -569,16 +585,22 @@ class Dact:
 
     def thumborigin(self):
         # self.print_fu('thumborigin()')
+        # ; this is where the original position of the thumb switches defined.
+        # ; each and every thumb keys is derived from this value.
+        # ; the value itself is defined from the 'm' key's position in qwerty layout
+        # ; and then added by some values, including thumb-offsets above.
         origin = self.key_position([ self.config.mount_width / 2, -(self.config.mount_height / 2), 0], 1, self.cornerrow)
         for i in range(len(origin)):
             origin[i] = origin[i] + self.config.thumb_offsets[i]
         return origin
 
+    # Thumb key angles / rotation
+    # TODO: make angles and locations part of config
     def thumb_tr_place(self, shape):
         self.print_fu('thumb_tr_place()')
-        shape = self.rotate(shape, [10, -23, 10])
+        shape = self.rotate(shape, [10, -23, 10]) # rotate
         shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-12, -16, 3])
+        shape = shape.translate([-12, -16, 3]) # move
         return shape
 
     def thumb_tl_place(self, shape):
@@ -616,31 +638,80 @@ class Dact:
         shape = shape.translate([-56.3, -43.3, -23.5])
         return shape
 
+    # not sure what this does? Draws caps?
     def thumb_1x_layout(self, shape, cap=False):
         self.print_fu('thumb_1x_layout()')
-        if cap:
-            shapes = self.thumb_mr_place(shape)
-            shapes = shapes.add(self.thumb_ml_place(shape))
-            shapes = shapes.add(self.thumb_br_place(shape))
-            shapes = shapes.add(self.thumb_bl_place(shape))
+        thumb_count = self.config.thumb_count
+
+        # if cap:
+        #     shapes = self.thumb_mr_place(shape)
+        #     shapes = shapes.add(self.thumb_ml_place(shape))
+        #     shapes = shapes.add(self.thumb_br_place(shape))
+        #     shapes = shapes.add(self.thumb_bl_place(shape))
+        # else:
+        # shapes = self.union(
+        #     [
+        #         self.thumb_mr_place(shape),
+        #         self.thumb_ml_place(shape),
+        #         self.thumb_br_place(shape),
+        #         self.thumb_bl_place(shape),
+        #     ]
+        # )
+        if thumb_count == 0:    # TODO
+            shapes = shape
+        elif thumb_count == 1:  # TODO
+            shapes = shape
+        elif thumb_count == 2:  # TODO
+            shapes = shape
+        elif thumb_count == 3:  # TODO
+            shapes = shape
+        elif thumb_count == 4:
+            if cap:
+                shapes = self.thumb_mr_place(shape)
+                shapes = shapes.add(self.thumb_ml_place(shape))
+            else:
+                shapes = self.union(
+                    [
+                        self.thumb_mr_place(shape),
+                        self.thumb_ml_place(shape),
+                    ])
+        elif thumb_count == 5:
+            if cap:
+                shapes = self.thumb_mr_place(shape)
+                shapes = shapes.add(self.thumb_ml_place(shape))
+                shapes = shapes.add(self.thumb_br_place(shape))
+                shapes = shapes.add(self.thumb_bl_place(shape))
+            else:
+                shapes = self.union(
+                    [
+                        self.thumb_mr_place(shape),
+                        self.thumb_ml_place(shape),
+                        self.thumb_br_place(shape),
+                        self.thumb_bl_place(shape),
+                    ])
         else:
-            shapes = self.union(
-                [
-                    self.thumb_mr_place(shape),
-                    self.thumb_ml_place(shape),
-                    self.thumb_br_place(shape),
-                    self.thumb_bl_place(shape),
-                ]
-            )
+            self.print_debug("Thumb count too high, no algorithm implemented for such high thumb count.")
+            os.exit
+
         return shapes
 
     def thumb_15x_layout(self, shape, cap=False):
         self.print_fu('thumb_15x_layout()')
-        if cap:
-            shape = self.rotate(shape, (0, 0, 90))
-            return self.thumb_tr_place(shape).add(self.thumb_tl_place(shape).solids().objects[0])
+        thumb_count = self.config.thumb_count
+        if thumb_count == 3:
+            if cap:
+                shape = self.rotate(shape, (0, 0, 90))
+                return self.thumb_tr_place(shape).add(self.thumb_tl_place(shape).solids().objects[0]).add(self.thumb_ml_place(shape).solids().objects[0])
+            else:
+                return self.thumb_tr_place(shape).union(self.thumb_tl_place(shape)).union(self.thumb_ml_place(shape))
+        elif thumb_count == 5:
+            if cap:
+                shape = self.rotate(shape, (0, 0, 90))
+                return self.thumb_tr_place(shape).add(self.thumb_tl_place(shape).solids().objects[0])
+            else:
+                return self.thumb_tr_place(shape).union(self.thumb_tl_place(shape))
         else:
-            return self.thumb_tr_place(shape).union(self.thumb_tl_place(shape))
+            return shape
 
     def double_plate(self):
         self.print_fu('double_plate()')
@@ -661,10 +732,12 @@ class Dact:
     def thumb(self):
         self.print_fu('thumb()')
         shape = self.thumb_1x_layout(self.single_plate())
-        shape = shape.union(self.thumb_15x_layout(self.single_plate()))
+        # changed from shape = shape.union(self.thumb_15x_layout(self.single_plate())
+        shape = shape.union(self.thumb_15x_layout(self.rotate(self.single_plate(), [0,0, (pi / 2)])))
         shape = shape.union(self.thumb_15x_layout(self.double_plate()))
         return shape
 
+    # The thumb post functions generate a 3D shape
     def thumb_post_tr(self):
         self.print_fu('thumb_post_tr()')
         return self.translate(self.web_post(),
@@ -689,21 +762,87 @@ class Dact:
                          [( self.config.mount_width / 2) - self.config.post_adj, -(self.config.mount_height / 1.15) + self.config.post_adj, 0]
                          )
 
+    # this function seems to generate the top part of the thumb switches (excluding the wall)
     def thumb_connectors(self):
         self.print_fu('thumb_connectors()')
         hulls = []
+        thumb_count = self.config.thumb_count
 
-        # Top two
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_tl_place(self.thumb_post_tr()),
-                    self.thumb_tl_place(self.thumb_post_br()),
-                    self.thumb_tr_place(self.thumb_post_tl()),
-                    self.thumb_tr_place(self.thumb_post_bl()),
-                ]
+        #if thumb_count == 0:    # TODO
+
+        if thumb_count >= 1:  # TODO
+            # Top right
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.thumb_tl_place(self.thumb_post_br()),
+                    ]
+                )
             )
-        )
+
+        if thumb_count >= 2:  # TODO
+            # Top left
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.thumb_tl_place(self.thumb_post_br()),
+                        self.thumb_tr_place(self.thumb_post_tl()),
+                        self.thumb_tr_place(self.thumb_post_bl()),
+                    ]
+                )
+            )
+            # top two to the main keyboard, starting on the left
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_tl_place(self.thumb_post_tl()),
+                        self.key_place(self.web_post_bl(), 0, self.cornerrow),
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_br(), 0, self.cornerrow),
+                        self.thumb_tr_place(self.thumb_post_tl()),
+                        self.key_place(self.web_post_bl(), 1, self.cornerrow),
+                        self.thumb_tr_place(self.thumb_post_tr()),
+                        # self.key_place(self.web_post_br(), 1, self.cornerrow),
+                        self.key_place(self.web_post_br(), 2, self.cornerrow),    #  1 You'll have to mess around with this number as you move the thumb clusters back and forward by more than a few mm
+                        self.thumb_tr_place(self.thumb_post_br()),
+                        self.key_place(self.web_post_bl(), 2, self.cornerrow),
+                        # TODO: translate the following from clojure to Python
+                        # (case row-count
+                        # :zero ()
+                        # (key - place c 2 lastrow web - post - bl))
+                        self.key_place(self.web_post_bl(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 2, self.lastrow),
+                        self.thumb_tr_place(self.thumb_post_br()),
+                        self.key_place(self.web_post_bl(), 3, self.lastrow),
+                    ]
+                )
+            )
+            # right most triangles?
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.key_place(self.web_post_tl(), 2, self.lastrow),
+                        self.key_place(self.web_post_bl(), 2, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 2, self.cornerrow),
+                        self.key_place(self.web_post_bl(), 3, self.cornerrow),
+                    ]
+                )
+            )
+            return self.union(hulls)
+        # if thumb_count == 3:  # TODO
+        #
+        # if thumb_count == 4:  # TODO
+        #
+        # if thumb_count == 5:  # TODO
+        #if thumb_count == 6:
+
+        if thumb_count > 6:
+            self.print_debug("This thumb count is not implemented yet.")
+            os.exit
+
 
         # bottom two on the right
         hulls.append(
@@ -1051,11 +1190,22 @@ class Dact:
     def front_wall(self):
         self.print_fu('front_wall()')
         shape = cq.Workplane('XY')
+
         shape = shape.union(
             self.key_wall_brace(
                 self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
             )
         )
+
+        # TODO thumb-tr-post (if (= (get c :configuration-thumb-count) :five ) web-post-br thumb-post-br)]
+        # ;The code below determines how the front wall is made (wall with thumb switches)
+        thumb_tr_post = self.thumb_post_br()
+        # shape = shape.union(self.wall_brace(
+        #     self.thumb_tr_place, 0, -1, thumb_tr_post,
+        #     self.key_place( , 3, self.lastrow),    0, -1, self.web_post_bl(),
+        # ))
+        ##
+
         shape = shape.union(self.key_wall_brace(
             3, self.lastrow, 0, -1, self.web_post_bl(), 3, self.lastrow, 0.5, -1, self.web_post_br()
         ))
@@ -1075,60 +1225,81 @@ class Dact:
 
         return shape
 
+    # creates the front facing part of the front wall of thumb cluster
+    # The side facing parts of the front wall are generated in some other function
     def thumb_walls(self):
         self.print_fu('thumb_walls()')
         # thumb, walls
         shape = cq.Workplane('XY')
-        shape = shape.union(
-            self.wall_brace(
-                self.thumb_mr_place, 0, -1, self.web_post_br(), self.thumb_tr_place, 0, -1, self.thumb_post_br()
+        thumb_count = self.config.thumb_count
+        wall_brace = self.wall_brace
+
+        # Comments below are from the perspective of the right keyboard
+        if thumb_count == 2:
+            # Front facing wall of the right most thumb key
+            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_br(),
+                                           self.thumb_tr_place, 0, -1, self.thumb_post_bl()))
+            # Front facing "pillar" of the right most thumb key (to the left of the one from the code above)
+            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_bl(),
+                                           self.thumb_tl_place, 0, -1, self.thumb_post_br()))
+            # 
+            #shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_br(),
+            #                               self.thumb_tl_place, 0, -1, self.thumb_post_bl()))
+            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_bl(),
+                                           self.thumb_tl_place, -1, 0, self.thumb_post_bl()))
+            shape = shape.union(wall_brace(self.thumb_tl_place, -1, 0, self.web_post_bl(),
+                                           self.thumb_tl_place, -1, 0, self.thumb_post_tl()))
+        else: # TODO: implement other thumb counts
+            shape = shape.union(
+                self.wall_brace(
+                    self.thumb_mr_place, 0, -1, self.web_post_br(), self.thumb_tr_place, 0, -1, self.thumb_post_br()
+                )
             )
-        )
-        shape = shape.union(self.wall_brace(
-            self.thumb_mr_place, 0, -1, self.web_post_br(), self.thumb_mr_place, 0, -1, self.web_post_bl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_br_place, 0, -1, self.web_post_br(), self.thumb_br_place, 0, -1, self.web_post_bl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_ml_place, -0.3, 1, self.web_post_tr(), self.thumb_ml_place, 0, 1, self.web_post_tl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_bl_place, 0, 1, self.web_post_tr(), self.thumb_bl_place, 0, 1, self.web_post_tl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_br_place, -1, 0, self.web_post_tl(), self.thumb_br_place, -1, 0, self.web_post_bl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_bl_place, -1, 0, self.web_post_tl(), self.thumb_bl_place, -1, 0, self.web_post_bl()
-        ))
-        # thumb, corners
-        shape = shape.union(self.wall_brace(
-            self.thumb_br_place, -1, 0, self.web_post_bl(), self.thumb_br_place, 0, -1, self.web_post_bl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_bl_place, -1, 0, self.web_post_tl(), self.thumb_bl_place, 0, 1, self.web_post_tl()
-        ))
-        # thumb, tweeners
-        shape = shape.union(self.wall_brace(
-            self.thumb_mr_place, 0, -1, self.web_post_bl(), self.thumb_br_place, 0, -1, self.web_post_br()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_ml_place, 0, 1, self.web_post_tl(), self.thumb_bl_place, 0, 1, self.web_post_tr()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_bl_place, -1, 0, self.web_post_bl(), self.thumb_br_place, -1, 0, self.web_post_tl()
-        ))
-        shape = shape.union(self.wall_brace(
-            self.thumb_tr_place,
-            0,
-            -1,
-            self.thumb_post_br(),
-            (lambda sh: self.key_place(sh, 3, self.lastrow)),
-            0,
-            -1,
-            self.web_post_bl(),
-        ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_mr_place, 0, -1, self.web_post_br(), self.thumb_mr_place, 0, -1, self.web_post_bl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_br_place, 0, -1, self.web_post_br(), self.thumb_br_place, 0, -1, self.web_post_bl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_ml_place, -0.3, 1, self.web_post_tr(), self.thumb_ml_place, 0, 1, self.web_post_tl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_bl_place, 0, 1, self.web_post_tr(), self.thumb_bl_place, 0, 1, self.web_post_tl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_br_place, -1, 0, self.web_post_tl(), self.thumb_br_place, -1, 0, self.web_post_bl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_bl_place, -1, 0, self.web_post_tl(), self.thumb_bl_place, -1, 0, self.web_post_bl()
+            ))
+            # thumb, corners
+            shape = shape.union(self.wall_brace(
+                self.thumb_br_place, -1, 0, self.web_post_bl(), self.thumb_br_place, 0, -1, self.web_post_bl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_bl_place, -1, 0, self.web_post_tl(), self.thumb_bl_place, 0, 1, self.web_post_tl()
+            ))
+            # thumb, tweeners
+            shape = shape.union(self.wall_brace(
+                self.thumb_mr_place, 0, -1, self.web_post_bl(), self.thumb_br_place, 0, -1, self.web_post_br()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_ml_place, 0, 1, self.web_post_tl(), self.thumb_bl_place, 0, 1, self.web_post_tr()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_bl_place, -1, 0, self.web_post_bl(), self.thumb_br_place, -1, 0, self.web_post_tl()
+            ))
+            shape = shape.union(self.wall_brace(
+                self.thumb_tr_place,
+                0,
+                -1,
+                self.thumb_post_br(),
+                (lambda sh: self.key_place(sh, 3, self.lastrow)),
+                0,
+                -1,
+                self.web_post_bl(),
+            ))
 
         return shape
 

@@ -211,4 +211,11 @@ ENV/
 # mkdocs documentation
 /site
 
+# dactyl stuff (mechanical)
+cadquery/
+things/
+*.svg
+*.stp
+*.step
+
 # End of https://www.gitignore.io/api/macos,linux,django,python,pycharm
