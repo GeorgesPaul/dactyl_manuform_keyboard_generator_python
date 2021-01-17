@@ -1,4 +1,5 @@
 import cadquery as cq
+#from cadquery.cadquery import cq
 from dataclasses import dataclass
 import numpy as np
 import os
@@ -32,6 +33,7 @@ class Dact:
         # ######################
         # ## Shape parameters ##
         # ######################
+        # TODO: make space around bottom of switches wider to allow to fit switch PCBs
         show_caps : bool    = True
         use_wide_pinky : bool = True
         top_rows_extra_key : bool = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
@@ -57,14 +59,14 @@ class Dact:
             9  # controls overall height# original=9 with centercol=3# use 16 for centercol=2
         )
 
-        extra_width = 2.5  # extra space between the base of keys# original= 2
-        extra_height = 1.0  # original= 0.5
+        extra_width     : float     = 2.5  # extra space between the base of keys# original= 2 or 2.5 (clojure script comment is different: "extra width between two keys in a row.")
+        extra_height    : float     = 1.0  # original= 0.5
 
-        wall_z_offset = -15  # length of the first downward_sloping part of the wall (negative)
-        wall_xy_offset = 5  # offset in the x and/or y direction for the first downward_sloping part of the wall (negative)
-        wall_thickness = 2  # wall thickness parameter# originally 5
-        left_wall_x_offset = 10
-        left_wall_z_offset = 3
+        wall_z_offset   : float     = -15  # Depth (downwards) of the first sloped part of the wall from the top of the keyboard.
+        wall_xy_offset  : float     = 5  # offset Width (sideways) of the first wall-slope from the top of the keyboard.
+        wall_thickness  : float     = 1.5  # wall thickness parameter# originally 5. Lowered a lot to make space for switch PCBs
+        left_wall_x_offset  : float = 10
+        left_wall_z_offset  : float = 3
         ## Settings for column_style == :fixed
         ## The defaults roughly match Maltron settings
         ##   http://patentimages.storage.googleapis.com/EP0219944A2/imgf0002.png
@@ -1032,6 +1034,39 @@ class Dact:
             self.config.wall_z_offset,
         ]
 
+   #  "If you want to change the wall, use this.
+   # place1 means the location at the keyboard, marked by key-place or thumb-xx-place
+   # dx1 means the movement from place1 in x coordinate, multiplied by wall-xy-locate.
+   # dy1 means the movement from place1 in y coordinate, multiplied by wall-xy-locate.
+   # post1 means the position this wall attached to place1.
+   #       xxxxx-br means bottom right of the place1.
+   #       xxxxx-bl means bottom left of the place1.
+   #       xxxxx-tr means top right of the place1.
+   #       xxxxx-tl means top left of the place1.
+   # place2 means the location at the keyboard, marked by key-place or thumb-xx-place
+   # dx2 means the movement from place2 in x coordinate, multiplied by wall-xy-locate.
+   # dy2 means the movement from place2 in y coordinate, multiplied by wall-xy-locate.
+   # post2 means the position this wall attached to place2.
+   #       xxxxx-br means bottom right of the place2.
+   #       xxxxx-bl means bottom left of the place2.
+   #       xxxxx-tr means top right of the place2.
+   #       xxxxx-tl means top left of the place2.
+   # How does it work?
+   # Given the following wall
+   #     a ==\\ b
+   #          \\
+   #         c \\ d
+   #           | |
+   #           | |
+   #           | |
+   #           | |
+   #         e | | f
+   # In this function a: usually the wall of a switch hole.
+   #                  b: the result of hull and translation from wall-locate1
+   #                  c: the result of hull and translation from wall-locate2
+   #                  d: the result of hull and translation from wall-locate3
+   #                  e: the result of bottom-hull translation from wall-locate2
+   #                  f: the result of bottom-hull translation from wall-locate3"
     def wall_brace(self, place1, dx1, dy1, post1, place2, dx2, dy2, post2):
         self.print_fu("wall_brace()")
         hulls = []
@@ -1235,6 +1270,8 @@ class Dact:
         wall_brace = self.wall_brace
 
         # Comments below are from the perspective of the right keyboard
+        # Code below generates the front facing planes of the thumb keys
+        # Angles/connectors between thumb key wall are done somewhere else.
         if thumb_count == 2:
             # Front facing wall of the right most thumb key
             shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_br(),
@@ -1242,11 +1279,13 @@ class Dact:
             # Front facing "pillar" of the right most thumb key (to the left of the one from the code above)
             shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_bl(),
                                            self.thumb_tl_place, 0, -1, self.thumb_post_br()))
-            # 
-            #shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_br(),
-            #                               self.thumb_tl_place, 0, -1, self.thumb_post_bl()))
+            # Front facing wall of the left most thumb key
+            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_br(),
+                                           self.thumb_tl_place, 0, -1, self.thumb_post_bl()))
+            # Front facing left most angle of left most thumb key
             shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_bl(),
                                            self.thumb_tl_place, -1, 0, self.thumb_post_bl()))
+            # Left wall of left most thumb key
             shape = shape.union(wall_brace(self.thumb_tl_place, -1, 0, self.web_post_bl(),
                                            self.thumb_tl_place, -1, 0, self.thumb_post_tl()))
         else: # TODO: implement other thumb counts
