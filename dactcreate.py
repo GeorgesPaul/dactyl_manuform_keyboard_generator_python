@@ -16,13 +16,16 @@ conf_right_keyboard = dactylutils.Dact.Config(show_caps   = False,
                                               script_print_shapes = True,
                                               nrows      = 6,
                                               ncols      = 7,  # row 3 from top, 3 from bottom should have 8 cols on right
-                                              thumb_count = 2,
-                                              extra_width   =   3, # extra width between row keys
+                                              thumb_count = 2, # number of thumb keys on thumb "isle"
+                                              extra_width   =  3,   # extra space between key rows (extra vertical space only). Can't be lower than 2
+                                              extra_height  =  1,   # extra space between key columns (extra horizontal space). Can't be lower than 1
                                               wall_z_offset = -15,  # Depth (downwards) of the first wall-slope from the top of the keyboard.
-                                              wall_xy_offset = 5,  # Width (sideways) of the first wall-slope from the top of the keyboard.
+                                              wall_xy_offset = 5,   # Width (sideways) of the first wall-slope from the top of the keyboard.
                                               left_wall_x_offset = 10,  # Same as above for the left wall
                                               left_wall_z_offset = 2,   # Same as above for the left wall
-                                              wall_thickness = 1.5,
+                                              wall_thickness    = 1.5,
+                                              web_thickness     = 2,        # Note: should be higher than plate_thickness.
+                                              plate_thickness   = 0.95,     # The key switch plate thickness. For Cherry MX chose 1mm
                                               #thumb_offsets = [10, -3, -3], # causes freeze?
                                               #plate_thickness = 2
                                               )

@@ -33,7 +33,10 @@ class Dact:
         # ######################
         # ## Shape parameters ##
         # ######################
-        # TODO: make space around bottom of switches wider to allow to fit switch PCBs
+        # TODO: make space around bottom of switches wider to allow to fit switch PCBs. Was 17.22mm should be 18.5 mm or more.
+        # TODO: fix clojure porting error where Cherry MX switch lips are upside down. Add option to not generate lips? 
+        # TODO: fix randomly floating thumb switch plane
+        # TODO: add keycap stabilizer mountings for wider keys?
         show_caps : bool    = True
         use_wide_pinky : bool = True
         top_rows_extra_key : bool = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
@@ -59,6 +62,7 @@ class Dact:
             9  # controls overall height# original=9 with centercol=3# use 16 for centercol=2
         )
 
+        # TODO: add check for extra width value (min value = 2?)
         extra_width     : float     = 2.5  # extra space between the base of keys# original= 2 or 2.5 (clojure script comment is different: "extra width between two keys in a row.")
         extra_height    : float     = 1.0  # original= 0.5
 
@@ -80,7 +84,7 @@ class Dact:
         ####################
         ## Web Connectors ##
         ####################
-        web_thickness = 3.5 + .5
+        web_thickness : float    = 3.5 + .5  # Note: should be higher than plate_thickness and wall_thickness. TODO: add check when value is lower than plate thickness.
         post_size = 0.1
         post_adj = post_size / 2
         #################
@@ -92,7 +96,7 @@ class Dact:
 
         sa_profile_key_height = 12.7
 
-        plate_thickness                = 4
+        plate_thickness     : float     = 4
         mount_width = keyswitch_width + 3
         mount_height = keyswitch_height + 3
         mount_thickness = plate_thickness
