@@ -331,6 +331,7 @@ class Dact:
         else:
             return [0, 0, 0]
 
+    # This create the (square) frames that will hold the (Cherry MX) switches
     def single_plate(self, cylinder_segments=100):
 
 		# Done: replace 1.5 hardcoded by bottom_plate_keyswitch_padding
@@ -338,7 +339,10 @@ class Dact:
         bottom_plate_keyswitch_padding = self.bottom_plate_keyswitch_padding
 
 	    # (bottom_plate_keyswitch_padding / 2)
-        # This creates the frame around the key switch hole. top bottom:
+        # This creates the frame around the key switch hole.
+        # It does this in 4 steps: first the top and left wall  +--
+        #                                                       |
+        # That is than mirror flipped along the Z-axis to form the square keyswitch frame
         top_wall = cq.Workplane("XY").box(self.config.keyswitch_width + (bottom_plate_keyswitch_padding *2), bottom_plate_keyswitch_padding, self.config.plate_thickness)
         top_wall = top_wall.translate((0, (bottom_plate_keyswitch_padding / 2) + (self.config.keyswitch_height / 2), self.config.plate_thickness / 2))
 
@@ -363,8 +367,8 @@ class Dact:
             plate_half1 = top_wall.union(left_wall)
 
         plate_half2 = plate_half1
-        plate_half2 = self.mirror(plate_half2, 'XZ')
-        plate_half2 = self.mirror(plate_half2, 'YZ')
+        plate_half2 = self.mirror(plate_half2, 'XZ') # Mirror the L shaped frame along "the plane in front of you"
+        plate_half2 = self.mirror(plate_half2, 'YZ') # Mirror the new "U shaped" frame along "the sideways plane" to from a square frame
 
         plate = plate_half1.union(plate_half2)
 
@@ -634,14 +638,14 @@ class Dact:
 
         row = 0
         places = []
-        places.append(self.web_post_tr_t())
-        #places.append(self.web_post_tl_t())
-        #places.append(self.web_post_br_t())
-        #places.append(self.web_post_bl_t())
-        # places.append(self.key_place(self.web_post_tr_t(), 3, row))
-        # places.append(self.key_place(self.web_post_tl_t(), 2, row))
-        # places.append(self.key_place(self.web_post_br_t(), 3, row))
-        # places.append(self.key_place(self.web_post_bl_t(), 2, row))
+        # places.append(self.web_post_tr_t())
+        # places.append(self.web_post_tl_t())
+        # places.append(self.web_post_br_t())
+        # places.append(self.web_post_bl_t())
+        places.append(self.key_place(self.web_post_tr_t(), 3, row))
+        places.append(self.key_place(self.web_post_tl_t(), 2, row))
+        places.append(self.key_place(self.web_post_br_t(), 3, row))
+        places.append(self.key_place(self.web_post_bl_t(), 2, row))
         hulls.append(self.triangle_hulls(places))
 
         # This iteration places the vertical "planks" on the sides of key hole frames
@@ -750,28 +754,14 @@ class Dact:
         self.print_fu('thumb_1x_layout()')
         thumb_count = self.config.thumb_count
 
-        # if cap:
-        #     shapes = self.thumb_mr_place(shape)
-        #     shapes = shapes.add(self.thumb_ml_place(shape))
-        #     shapes = shapes.add(self.thumb_br_place(shape))
-        #     shapes = shapes.add(self.thumb_bl_place(shape))
-        # else:
-        #     shapes = self.union(
-        #     [
-        #         self.thumb_mr_place(shape),
-        #         self.thumb_ml_place(shape),
-        #         self.thumb_br_place(shape),
-        #         self.thumb_bl_place(shape),
-        #     ]
-        #     )
         if thumb_count == 0:    # TODO
-            shapes = shape
+            shapes = cq.Workplane("XY")
         elif thumb_count == 1:  # TODO
-            shapes = shape
+            shapes = cq.Workplane("XY")
         elif thumb_count == 2:  # TODO
-            shapes = shape
+            shapes = cq.Workplane("XY")
         elif thumb_count == 3:  # TODO
-            shapes = shape
+            shapes = cq.Workplane("XY")
         elif thumb_count == 4:
             if cap:
                 shapes = self.thumb_mr_place(shape)
@@ -819,6 +809,7 @@ class Dact:
             return self.thumb_tr_place(shape).add(self.thumb_tl_place(shape).solids().objects[0])
         else:
             return self.thumb_tr_place(shape).union(self.thumb_tl_place(shape))
+
         # else:
 
         return shape
@@ -842,9 +833,10 @@ class Dact:
     def thumb(self):
         self.print_fu('thumb()')
         shape = self.thumb_1x_layout(self.single_plate())
-        # changed from shape = shape.union(self.thumb_15x_layout(self.single_plate())
+        # changed from shape = shape.union(self.thumb_15x_layout(self.single_plate()))
         shape = shape.union(self.thumb_15x_layout(self.rotate(self.single_plate(), [0,0, (pi / 2)])))
         shape = shape.union(self.thumb_15x_layout(self.double_plate()))
+
         return shape
 
     # The thumb post functions generate a 3D shape
@@ -872,7 +864,7 @@ class Dact:
                          [( self.config.mount_width / 2) - self.config.post_adj, -(self.config.mount_height / 1.15) + self.config.post_adj, 0]
                          )
 
-    # this function seems to generate the top part of the thumb switches (excluding the wall)
+    # this function seems to generate the top part of the thumb switch frames (excluding the wall)
     def thumb_connectors(self):
         self.print_fu('thumb_connectors()')
         hulls = []
@@ -947,132 +939,129 @@ class Dact:
         # if thumb_count == 4:  # TODO
         #
         # if thumb_count == 5:  # TODO
-        #if thumb_count == 6:
+        if thumb_count == 6:
+            # bottom two on the right
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_br_place(self.web_post_tl()),
+                        self.thumb_br_place(self.web_post_bl()),
+                        self.thumb_mr_place(self.web_post_tr()),
+                        self.thumb_mr_place(self.web_post_br()),
+                    ]
+                )
+            )
 
+            # bottom two on the left
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_br_place(self.web_post_tl()),
+                        self.thumb_br_place(self.web_post_bl()),
+                        self.thumb_mr_place(self.web_post_tr()),
+                        self.thumb_mr_place(self.web_post_br()),
+                    ]
+                )
+            )
+            # centers of the bottom four
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_bl_place(self.web_post_tl()),
+                        self.thumb_bl_place(self.web_post_bl()),
+                        self.thumb_ml_place(self.web_post_tr()),
+                        self.thumb_ml_place(self.web_post_br()),
+                    ]
+                )
+            )
+
+            # top two to the middle two, starting on the left
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_br_place(self.web_post_tr()),
+                        self.thumb_bl_place(self.web_post_br()),
+                        self.thumb_br_place(self.web_post_tl()),
+                        self.thumb_bl_place(self.web_post_bl()),
+                        self.thumb_mr_place(self.web_post_tr()),
+                        self.thumb_ml_place(self.web_post_br()),
+                        self.thumb_mr_place(self.web_post_tl()),
+                        self.thumb_ml_place(self.web_post_bl()),
+                    ]
+                )
+            )
+
+            # top two to the main keyboard, starting on the left
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_tl_place(self.thumb_post_tl()),
+                        self.thumb_ml_place(self.web_post_tl()),
+                        self.thumb_tl_place(self.thumb_post_bl()),
+                        self.thumb_ml_place(self.web_post_bl()),
+                        self.thumb_tl_place(self.thumb_post_br()),
+                        self.thumb_mr_place(self.web_post_tl()),
+                        self.thumb_tr_place(self.thumb_post_bl()),
+                        self.thumb_mr_place(self.web_post_bl()),
+                        self.thumb_tr_place(self.thumb_post_br()),
+                    ]
+                )
+            )
+
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.thumb_tl_place(self.thumb_post_tl()),
+                        self.key_place(self.web_post_br(), 0, self.cornerrow),
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_bl(), 0, self.cornerrow),
+                        self.thumb_tr_place(self.thumb_post_tl()),
+                        self.key_place(self.web_post_br(), 1, self.cornerrow),
+                        self.thumb_tr_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_bl(), 1, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 2, self.lastrow),
+                        self.thumb_tr_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_br(), 2, self.lastrow),
+                        self.thumb_tr_place(self.thumb_post_br()),
+                        self.key_place(self.web_post_bl(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 3, self.lastrow),
+                        self.key_place(self.web_post_tl(), 2, self.lastrow),
+                        self.key_place(self.web_post_tr(), 3, self.lastrow),
+                        self.key_place(self.web_post_br(), 3, self.cornerrow),
+                        self.key_place(self.web_post_tl(), 3, self.lastrow),
+                        self.key_place(self.web_post_bl(), 3, self.cornerrow),
+                        self.key_place(self.web_post_br(), 4, self.cornerrow),
+                    ]
+                )
+            )
+
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.key_place(self.web_post_bl(), 1, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 2, self.cornerrow),
+                        self.key_place(self.web_post_tl(), 2, self.lastrow),
+                        self.key_place(self.web_post_bl(), 2, self.cornerrow),
+                        self.key_place(self.web_post_br(), 3, self.cornerrow),
+                    ]
+                )
+            )
+
+            hulls.append(
+                self.triangle_hulls(
+                    [
+                        self.key_place(self.web_post_tl(), 3, self.lastrow),
+                        self.key_place(self.web_post_bl(), 3, self.lastrow),
+                        self.key_place(self.web_post_tl(), 3, self.lastrow),
+                        self.key_place(self.web_post_br(), 4, self.cornerrow),
+                    ]
+                )
+            )
         if thumb_count > 6:
             self.print_debug("This thumb count is not implemented yet.")
             os.exit
-
-
-        # bottom two on the right
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_br_place(self.web_post_tl()),
-                    self.thumb_br_place(self.web_post_bl()),
-                    self.thumb_mr_place(self.web_post_tr()),
-                    self.thumb_mr_place(self.web_post_br()),
-                ]
-            )
-        )
-
-        # bottom two on the left
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_br_place(self.web_post_tl()),
-                    self.thumb_br_place(self.web_post_bl()),
-                    self.thumb_mr_place(self.web_post_tr()),
-                    self.thumb_mr_place(self.web_post_br()),
-                ]
-            )
-        )
-        # centers of the bottom four
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_bl_place(self.web_post_tl()),
-                    self.thumb_bl_place(self.web_post_bl()),
-                    self.thumb_ml_place(self.web_post_tr()),
-                    self.thumb_ml_place(self.web_post_br()),
-                ]
-            )
-        )
-
-        # top two to the middle two, starting on the left
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_br_place(self.web_post_tr()),
-                    self.thumb_bl_place(self.web_post_br()),
-                    self.thumb_br_place(self.web_post_tl()),
-                    self.thumb_bl_place(self.web_post_bl()),
-                    self.thumb_mr_place(self.web_post_tr()),
-                    self.thumb_ml_place(self.web_post_br()),
-                    self.thumb_mr_place(self.web_post_tl()),
-                    self.thumb_ml_place(self.web_post_bl()),
-                ]
-            )
-        )
-
-        # top two to the main keyboard, starting on the left
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_tl_place(self.thumb_post_tl()),
-                    self.thumb_ml_place(self.web_post_tl()),
-                    self.thumb_tl_place(self.thumb_post_bl()),
-                    self.thumb_ml_place(self.web_post_bl()),
-                    self.thumb_tl_place(self.thumb_post_br()),
-                    self.thumb_mr_place(self.web_post_tl()),
-                    self.thumb_tr_place(self.thumb_post_bl()),
-                    self.thumb_mr_place(self.web_post_bl()),
-                    self.thumb_tr_place(self.thumb_post_br()),
-                ]
-            )
-        )
-
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.thumb_tl_place(self.thumb_post_tl()),
-                    self.key_place(self.web_post_br(), 0, self.cornerrow),
-                    self.thumb_tl_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_bl(), 0, self.cornerrow),
-                    self.thumb_tr_place(self.thumb_post_tl()),
-                    self.key_place(self.web_post_br(), 1, self.cornerrow),
-                    self.thumb_tr_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                    self.key_place(self.web_post_tr(), 2, self.lastrow),
-                    self.key_place(self.web_post_br(), 2, self.lastrow),
-                    self.thumb_tr_place(self.thumb_post_tr()),
-                    self.key_place(self.web_post_br(), 2, self.lastrow),
-                    self.thumb_tr_place(self.thumb_post_br()),
-                    self.key_place(self.web_post_bl(), 2, self.lastrow),
-                    self.key_place(self.web_post_br(), 3, self.lastrow),
-                    self.key_place(self.web_post_tl(), 2, self.lastrow),
-                    self.key_place(self.web_post_tr(), 3, self.lastrow),
-                    self.key_place(self.web_post_br(), 3, self.cornerrow),
-                    self.key_place(self.web_post_tl(), 3, self.lastrow),
-                    self.key_place(self.web_post_bl(), 3, self.cornerrow),
-                    self.key_place(self.web_post_br(), 4, self.cornerrow),
-                ]
-            )
-        )
-
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                    self.key_place(self.web_post_tr(), 2, self.lastrow),
-                    self.key_place(self.web_post_br(), 2, self.cornerrow),
-                    self.key_place(self.web_post_tl(), 2, self.lastrow),
-                    self.key_place(self.web_post_bl(), 2, self.cornerrow),
-                    self.key_place(self.web_post_br(), 3, self.cornerrow),
-                ]
-            )
-        )
-
-        hulls.append(
-            self.triangle_hulls(
-                [
-                    self.key_place(self.web_post_tl(), 3, self.lastrow),
-                    self.key_place(self.web_post_bl(), 3, self.lastrow),
-                    self.key_place(self.web_post_tl(), 3, self.lastrow),
-                    self.key_place(self.web_post_br(), 4, self.cornerrow),
-                ]
-            )
-        )
 
         return self.union(hulls)
 
