@@ -1,0 +1,1 @@
+python -m nuitka --standalone --windows-dependency-tool=pefile --plugin-enable=implicit-imports --follow-imports --plugin-enable=numpy pyinst.py
