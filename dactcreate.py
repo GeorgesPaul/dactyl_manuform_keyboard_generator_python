@@ -26,7 +26,8 @@ def main():
 												  wall_xy_offset = 5,   # Width (sideways) of the first wall-slope from the top of the keyboard.
 												  left_wall_x_offset = 10,  # Same as above for the left wall
 												  left_wall_z_offset = 2,   # Same as above for the left wall
-												  wall_thickness    = 1.5,
+												  wall_thickness    = 2,
+												  switch_plate_wall_thickness = 2,
 												  web_thickness     = 3,        # Note: should be higher than plate_thickness.
 												  plate_thickness   = 0.95,     # The key switch plate thickness. For Cherry MX chose 1mm
 												  #thumb_offsets = [10, -3, -3], # causes freeze?
