@@ -608,15 +608,15 @@ class Dact:
         return post
 
     # tl, tr, bl, br = top left, top right, bottom left, bottom right
-    # The perspective is as seen from a bottom view with the keyboard in front of you (as if you're going to type).
-    # Example with a key hole frame (bottom view):
+    # The perspective is as seen from a top view with the keyboard in front of you (as if you're going to type).
+    # Example with a key hole frame (top view):
     #  TL      TR
     #    +---+
     #    |   |
     #    +---+
     #  BL      BR
-    # It would be better to have this from the top perspective (as is convention in electronics design) but since existing
-    # clojure scripts are from this perspective this wasn't refactored.
+    # Note: existing closure scripts have a few from the bottom, this has been renamed to be from top in this script (sorry).
+    # This is to match what is convention in electronics design.
 
     #bl or tl from top
     def web_post_tl(self, col = 0):
@@ -680,7 +680,6 @@ class Dact:
                                           0))
 
         return shape
-
 
     # Alternative functions by Georges to avoid "skinny wall" problem when column edges are overlapping instead of side by side
     def web_post_tl_g(self, custom_thick = 1.5, col = 1):
@@ -1035,7 +1034,8 @@ class Dact:
 
         #if thumb_count == 0:    # TODO
 
-        if thumb_count >= 1:  # TODO
+        if thumb_count == 1:  # TODO
+            print("top right")
             # Top right
             hulls.append(
                 self.triangle_hulls(
@@ -1047,6 +1047,7 @@ class Dact:
             )
 
         if thumb_count >= 2:  # TODO
+            print("top left")
             # Top left
             hulls.append(
                 self.triangle_hulls(
@@ -1505,19 +1506,21 @@ class Dact:
 
         shape = shape.union(
             self.key_wall_brace(
+                #self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
                 self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
             )
         )
 
         # TODO thumb-tr-post (if (= (get c :configuration-thumb-count) :five ) web-post-br thumb-post-br)]
         # ;The code below determines how the front wall is made (wall with thumb switches)
-        thumb_tr_post = self.thumb_post_br()
+        # thumb_tr_post = self.thumb_post_br()
         # shape = shape.union(self.wall_brace(
         #     self.thumb_tr_place, 0, -1, thumb_tr_post,
-        #     self.key_place( , 3, self.lastrow),    0, -1, self.web_post_br(),
+        #     self.key_place(0 , 3, self.lastrow),    0, -1, self.web_post_br(),
         # ))
         ##
 
+        # Wall along 4th column and along 4 - 5 column connector
         shape = shape.union(self.key_wall_brace(
             3, self.lastrow, 0, -1, self.web_post_br(), 3, self.lastrow, 0.5, -1, self.web_post_bl()
         ))
@@ -1551,19 +1554,19 @@ class Dact:
         # Angles/connectors between thumb key wall are done somewhere else.
         if thumb_count == 2:
             # Front facing wall of the right most thumb key
-            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_bl(),
+            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.thumb_post_br(),
                                            self.thumb_tr_place, 0, -1, self.thumb_post_bl()))
             # Front facing "pillar" of the right most thumb key (to the left of the one from the code above)
-            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.web_post_br(),
+            shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.thumb_post_bl(),
                                            self.thumb_tl_place, 0, -1, self.thumb_post_br()))
             # Front facing wall of the left most thumb key
-            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_bl(),
+            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.thumb_post_br(),
                                            self.thumb_tl_place, 0, -1, self.thumb_post_bl()))
             # Front facing left most angle of left most thumb key
-            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.web_post_br(),
+            shape = shape.union(wall_brace(self.thumb_tl_place, 0, -1, self.thumb_post_bl(),
                                            self.thumb_tl_place, -1, 0, self.thumb_post_bl()))
             # Left wall of left most thumb key
-            shape = shape.union(wall_brace(self.thumb_tl_place, -1, 0, self.web_post_br(),
+            shape = shape.union(wall_brace(self.thumb_tl_place, -1, 0, self.thumb_post_bl(),
                                            self.thumb_tl_place, -1, 0, self.thumb_post_tl()))
         else: # TODO: implement other thumb counts
             shape = shape.union(
@@ -1924,11 +1927,15 @@ class Dact:
         self.print_fu("model_right()")
         # Generate the square little frames that the key switches fit into.
         shape = cq.Workplane('XY').union(self.key_holes())
+
         self.print_model(shape, "key_holes")
+
         # Connect the key switch frames together with extra material
         # This generates the top surface of the keyboard.
-        shape = shape.union(self.connectors())
-        self.print_model(shape, "connectors")
+
+        #shape = shape.union(self.connectors())
+        #self.print_model(shape, "connectors")
+
         ## Generate the thumb switch frames
         shape = shape.union(self.thumb())
         self.print_model(shape, "thumb_switches")
@@ -1940,32 +1947,36 @@ class Dact:
         s2 = cq.Workplane('XY').union(self.case_walls())
         self.print_model(s2, "walls")
         # Generate screw insert cilinders (without hole)
-        s2 = self.union([s2, *self.screw_insert_outers])
-        self.print_model(s2, "screw_insert_cil")
+
+        #s2 = self.union([s2, *self.screw_insert_outers])
+        #self.print_model(s2, "screw_insert_cil")
         
         # TODO: add switch for Teensy or USB holder setting?
-        # s2 = s2.union(self.teensy_holder())
-        s2 = s2.union(self.usb_holder())
+        ## s2 = s2.union(self.teensy_holder())
+        #s2 = s2.union(self.usb_holder())
+        #self.print_model(s2, "usb holder")
 
-        self.print_model(s2, "usb holder")
         # Connector holes
-        s2 = s2.cut(self.rj9_space())
-        self.print_model(s2, "s2 cut out rj9 space")
-        s2 = s2.cut(self.usb_holder_hole())
-        self.print_model(s2, "s2 cut out usb space")
+        #s2 = s2.cut(self.rj9_space())
+        #self.print_model(s2, "s2 cut out rj9 space")
+        #s2 = s2.cut(self.usb_holder_hole())
+        #self.print_model(s2, "s2 cut out usb space")
+
         # Create holes in the screw insert cilinders
-        s2 = s2.cut(self.union(self.screw_insert_holes))
-        self.print_model(s2, "s2 cut out screw holes")
+        #s2 = s2.cut(self.union(self.screw_insert_holes))
+        #self.print_model(s2, "s2 cut out screw holes")
+
         # Add rj9 holder to shape
-        #shape = shape.union(self.rj9_holder()) # georges fix
-        s2 = s2.union(self.rj9_holder())
-        self.print_model(s2, "add rj9 holder to shape")
+        ##shape = shape.union(self.rj9_holder()) # georges fix deleted.
+        #s2 = s2.union(self.rj9_holder())
+        #self.print_model(s2, "add rj9 holder to shape")
 
         # Add s2 to shape
         #shape = shape.union(s2, tol=.01)
         try:
-            shape = shape.union(s2, tol=.01)
-            self.print_model(shape, "add s2 to shape")
+            #shape = shape.union(s2, tol=.01)
+            #self.print_model(shape, "add s2 to shape")
+            print("add s2 disabled")
         except Exception:
             traceback.print_exc()
             sys.exit()
