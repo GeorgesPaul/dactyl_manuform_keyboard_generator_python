@@ -47,6 +47,7 @@ class Dact:
 		# TODO: implement a front_wall_x_offset and front_wall_z_offset to get some wrist rests (or alternative wrist rest implementation)
         show_caps : bool    = True
         use_wide_pinky : bool = True
+        use_inner_column : bool = False
         top_rows_extra_key : bool = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
         side_nubs_enabled  : bool = False # Enables or disabled the side nubs in the keyswitch plate that hold the (Cherry MX) switches. Not needed in most cases.
         nrows : int         = 6  # key rows TODO: fix bug where more than 6 rows causes memory leak. Half-fixed by making style "standard" instead of ortho
@@ -608,18 +609,18 @@ class Dact:
         return post
 
     # tl, tr, bl, br = top left, top right, bottom left, bottom right
-    # The perspective is as seen from a top view with the keyboard in front of you (as if you're going to type).
-    # Example with a key hole frame (top view):
+    # The perspective is as seen from a bottom view with the keyboard in front of you (as if you're going to type).
+    # Example with a key hole frame (bottom view):
     #  TL      TR
     #    +---+
     #    |   |
     #    +---+
     #  BL      BR
-    # Note: existing closure scripts have a few from the bottom, this has been renamed to be from top in this script (sorry).
-    # This is to match what is convention in electronics design.
+    # Note: existing closure scripts also have a view from the bottom.
+    # This is against what is convention in electronics design unfortunately. But was kept this way to match Clojure scripts.
 
     #bl or tl from top
-    def web_post_tl(self, col = 0):
+    def web_post_tr(self, col = 0):
         # self.print_fu('web_post_tl()')
         width = self.config.mount_width / 2
         if col == 2:
@@ -634,7 +635,7 @@ class Dact:
         return shape
 
     #tl or bl from top
-    def web_post_bl(self, col = 0):
+    def web_post_br(self, col = 0):
         # self.print_fu('web_post_bl()')
         width = self.config.mount_width / 2
         if col == 2:
@@ -649,7 +650,7 @@ class Dact:
         return shape
 
     # br or tr from top
-    def web_post_tr(self, col = 0):
+    def web_post_tl(self, col = 0):
         # self.print_fu('web_post_tr()')
         # post_adj is a tiny number (probably to make geometry overlap a bit on purpose?)
         width = self.config.mount_width / 2
@@ -665,7 +666,7 @@ class Dact:
         return shape
 
     #tr or br from top
-    def web_post_br(self, col = 0):
+    def web_post_bl(self, col = 0):
         # self.print_fu('web_post_br()')
         width = self.config.mount_width / 2
         shift = self.config.post_adj
@@ -770,8 +771,12 @@ class Dact:
         self.print_fu('connectors()')
         hulls = []
         thickness_mm = self.config.switch_plate_wall_thickness
+        col_count = self.config.ncols - 1
+        if self.config.use_inner_column:
+            col_count = col_count + 1
+
         # This iteration places the vertical "planks" on the sides of key hole frames
-        for column in range(self.config.ncols - 1):
+        for column in range(col_count):
             for row in range(self.lastrow):  # need to consider last_row?
             #for row in range(self.config.nrows):  # need to consider last_row?
                 places = []
@@ -789,10 +794,10 @@ class Dact:
                     places.append(self.key_place(self.web_post_bl_g(thickness_mm, column), column, row, x_sh))
                 #elif (row != self.lastrow):
                 else:
-                    places.append(self.key_place(self.web_post_tr(), column + 1, row))
-                    places.append(self.key_place(self.web_post_tl(), column, row))
-                    places.append(self.key_place(self.web_post_br(), column + 1, row))
-                    places.append(self.key_place(self.web_post_bl(), column, row))
+                    places.append(self.key_place(self.web_post_tl(), column + 1, row))
+                    places.append(self.key_place(self.web_post_tr(), column, row))
+                    places.append(self.key_place(self.web_post_bl(), column + 1, row))
+                    places.append(self.key_place(self.web_post_br(), column, row))
 
                 if len(places): # if arrray is not empty
                     hulls.append(self.triangle_hulls(places))
@@ -809,10 +814,10 @@ class Dact:
                     x_sh = 0
 
                 places = []
-                places.append(self.key_place(self.web_post_br(column), column, row, x_sh))
                 places.append(self.key_place(self.web_post_bl(column), column, row, x_sh))
-                places.append(self.key_place(self.web_post_tr(column), column, row + 1, x_sh))
+                places.append(self.key_place(self.web_post_br(column), column, row, x_sh))
                 places.append(self.key_place(self.web_post_tl(column), column, row + 1, x_sh))
+                places.append(self.key_place(self.web_post_tr(column), column, row + 1, x_sh))
 
                 hulls.append(self.triangle_hulls(places))
 
@@ -834,10 +839,10 @@ class Dact:
                     places.append(self.key_place(self.web_post_br_g(thickness_mm, column + 1), column+1, row, x_sh))
                     places.append(self.key_place(self.web_post_tr_g(thickness_mm, column + 1), column+1, row+1, x_sh))
                 else:
-                    places.append(self.key_place(self.web_post_bl(), column, row))
-                    places.append(self.key_place(self.web_post_tl(), column, row + 1))
-                    places.append(self.key_place(self.web_post_br(), column + 1, row))
-                    places.append(self.key_place(self.web_post_tr(), column + 1, row + 1))
+                    places.append(self.key_place(self.web_post_br(), column, row))
+                    places.append(self.key_place(self.web_post_tr(), column, row + 1))
+                    places.append(self.key_place(self.web_post_bl(), column + 1, row))
+                    places.append(self.key_place(self.web_post_tl(), column + 1, row + 1))
                 hulls.append(self.triangle_hulls(places))
 
         #self.print_model(self.union(hulls), "connectors3rd")
@@ -1074,24 +1079,24 @@ class Dact:
                 self.triangle_hulls(
                     [
                         self.thumb_tl_place(self.thumb_post_tl()),
-                        self.key_place(self.web_post_br(), 0, thumb_corner_row),
-                        self.thumb_tl_place(self.thumb_post_tr()),
                         self.key_place(self.web_post_bl(), 0, thumb_corner_row),
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_br(), 0, thumb_corner_row),
                         self.thumb_tr_place(self.thumb_post_tl()),
-                        self.key_place(self.web_post_br(), 1, thumb_corner_row),
+                        self.key_place(self.web_post_bl(), 1, thumb_corner_row),
                         self.thumb_tr_place(self.thumb_post_tr()),
                         # self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                        self.key_place(self.web_post_bl(), 1, thumb_corner_row),  #cornerrow  #  1 You'll have to mess around with this number as you move the thumb clusters back and forward by more than a few mm
+                        self.key_place(self.web_post_br(), 1, thumb_corner_row),  #cornerrow  #  1 You'll have to mess around with this number as you move the thumb clusters back and forward by more than a few mm
                         self.thumb_tr_place(self.thumb_post_br()),
-                        self.key_place(self.web_post_br(), 2, thumb_corner_row), #2
+                        self.key_place(self.web_post_bl(), 2, thumb_corner_row), #2
                         # TODO: translate the following from clojure to Python
                         # (case row-count
                         # :zero ()
                         # (key - place c 2 lastrow web - post - bl))
-                        self.key_place(self.web_post_br(), 2, thumb_corner_row), #2 self.lastrow
                         self.key_place(self.web_post_bl(), 2, thumb_corner_row), #2 self.lastrow
+                        self.key_place(self.web_post_br(), 2, thumb_corner_row), #2 self.lastrow
                         self.thumb_tr_place(self.thumb_post_br()),
-                        self.key_place(self.web_post_br(), 3, thumb_corner_row), # was 3 #self.lastrow
+                        self.key_place(self.web_post_bl(), 3, thumb_corner_row), # was 3 #self.lastrow
                     ]
                 )
             )
@@ -1102,11 +1107,11 @@ class Dact:
                         # column 1 and 2 have 5 rows (+ thumb rows),
                         # column 3 and 4 have 6 rows.
                         # colums after 5 have 5 rows again
-                        self.key_place(self.web_post_tr(), 2, thumb_last_row),   #self.lastrow
-                        self.key_place(self.web_post_br(), 2, thumb_last_row),  #self.cornerrow
-                        self.key_place(self.web_post_tl(), 2, thumb_last_row),    #self.lastrow
+                        self.key_place(self.web_post_tl(), 2, thumb_last_row),   #self.lastrow
                         self.key_place(self.web_post_bl(), 2, thumb_last_row),  #self.cornerrow
-                        self.key_place(self.web_post_br(), 3, thumb_last_row), #  3 cornerrow
+                        self.key_place(self.web_post_tr(), 2, thumb_last_row),    #self.lastrow
+                        self.key_place(self.web_post_br(), 2, thumb_last_row),  #self.cornerrow
+                        self.key_place(self.web_post_bl(), 3, thumb_last_row), #  3 cornerrow
                     ]
                 )
             )
@@ -1121,10 +1126,10 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.thumb_br_place(self.web_post_tl()),
-                        self.thumb_br_place(self.web_post_bl()),
-                        self.thumb_mr_place(self.web_post_tr()),
-                        self.thumb_mr_place(self.web_post_br()),
+                        self.thumb_br_place(self.web_post_tr()),
+                        self.thumb_br_place(self.web_post_br()),
+                        self.thumb_mr_place(self.web_post_tl()),
+                        self.thumb_mr_place(self.web_post_bl()),
                     ]
                 )
             )
@@ -1133,10 +1138,10 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.thumb_br_place(self.web_post_tl()),
-                        self.thumb_br_place(self.web_post_bl()),
-                        self.thumb_mr_place(self.web_post_tr()),
-                        self.thumb_mr_place(self.web_post_br()),
+                        self.thumb_br_place(self.web_post_tr()),
+                        self.thumb_br_place(self.web_post_br()),
+                        self.thumb_mr_place(self.web_post_tl()),
+                        self.thumb_mr_place(self.web_post_bl()),
                     ]
                 )
             )
@@ -1144,10 +1149,10 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.thumb_bl_place(self.web_post_tl()),
-                        self.thumb_bl_place(self.web_post_bl()),
-                        self.thumb_ml_place(self.web_post_tr()),
-                        self.thumb_ml_place(self.web_post_br()),
+                        self.thumb_bl_place(self.web_post_tr()),
+                        self.thumb_bl_place(self.web_post_br()),
+                        self.thumb_ml_place(self.web_post_tl()),
+                        self.thumb_ml_place(self.web_post_bl()),
                     ]
                 )
             )
@@ -1156,14 +1161,14 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.thumb_br_place(self.web_post_tr()),
-                        self.thumb_bl_place(self.web_post_br()),
                         self.thumb_br_place(self.web_post_tl()),
                         self.thumb_bl_place(self.web_post_bl()),
-                        self.thumb_mr_place(self.web_post_tr()),
-                        self.thumb_ml_place(self.web_post_br()),
+                        self.thumb_br_place(self.web_post_tr()),
+                        self.thumb_bl_place(self.web_post_br()),
                         self.thumb_mr_place(self.web_post_tl()),
                         self.thumb_ml_place(self.web_post_bl()),
+                        self.thumb_mr_place(self.web_post_tr()),
+                        self.thumb_ml_place(self.web_post_br()),
                     ]
                 )
             )
@@ -1173,13 +1178,13 @@ class Dact:
                 self.triangle_hulls(
                     [
                         self.thumb_tl_place(self.thumb_post_tl()),
-                        self.thumb_ml_place(self.web_post_tl()),
+                        self.thumb_ml_place(self.web_post_tr()),
                         self.thumb_tl_place(self.thumb_post_bl()),
-                        self.thumb_ml_place(self.web_post_bl()),
+                        self.thumb_ml_place(self.web_post_br()),
                         self.thumb_tl_place(self.thumb_post_br()),
-                        self.thumb_mr_place(self.web_post_tl()),
+                        self.thumb_mr_place(self.web_post_tr()),
                         self.thumb_tr_place(self.thumb_post_bl()),
-                        self.thumb_mr_place(self.web_post_bl()),
+                        self.thumb_mr_place(self.web_post_br()),
                         self.thumb_tr_place(self.thumb_post_br()),
                     ]
                 )
@@ -1189,26 +1194,26 @@ class Dact:
                 self.triangle_hulls(
                     [
                         self.thumb_tl_place(self.thumb_post_tl()),
-                        self.key_place(self.web_post_br(), 0, self.cornerrow),
-                        self.thumb_tl_place(self.thumb_post_tr()),
                         self.key_place(self.web_post_bl(), 0, self.cornerrow),
+                        self.thumb_tl_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_br(), 0, self.cornerrow),
                         self.thumb_tr_place(self.thumb_post_tl()),
-                        self.key_place(self.web_post_br(), 1, self.cornerrow),
-                        self.thumb_tr_place(self.thumb_post_tr()),
                         self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                        self.key_place(self.web_post_tr(), 2, self.lastrow),
-                        self.key_place(self.web_post_br(), 2, self.lastrow),
                         self.thumb_tr_place(self.thumb_post_tr()),
-                        self.key_place(self.web_post_br(), 2, self.lastrow),
-                        self.thumb_tr_place(self.thumb_post_br()),
-                        self.key_place(self.web_post_bl(), 2, self.lastrow),
-                        self.key_place(self.web_post_br(), 3, self.lastrow),
+                        self.key_place(self.web_post_br(), 1, self.cornerrow),
                         self.key_place(self.web_post_tl(), 2, self.lastrow),
-                        self.key_place(self.web_post_tr(), 3, self.lastrow),
-                        self.key_place(self.web_post_br(), 3, self.cornerrow),
+                        self.key_place(self.web_post_bl(), 2, self.lastrow),
+                        self.thumb_tr_place(self.thumb_post_tr()),
+                        self.key_place(self.web_post_bl(), 2, self.lastrow),
+                        self.thumb_tr_place(self.thumb_post_br()),
+                        self.key_place(self.web_post_br(), 2, self.lastrow),
+                        self.key_place(self.web_post_bl(), 3, self.lastrow),
+                        self.key_place(self.web_post_tr(), 2, self.lastrow),
                         self.key_place(self.web_post_tl(), 3, self.lastrow),
                         self.key_place(self.web_post_bl(), 3, self.cornerrow),
-                        self.key_place(self.web_post_br(), 4, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 3, self.lastrow),
+                        self.key_place(self.web_post_br(), 3, self.cornerrow),
+                        self.key_place(self.web_post_bl(), 4, self.cornerrow),
                     ]
                 )
             )
@@ -1216,12 +1221,12 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                        self.key_place(self.web_post_tr(), 2, self.lastrow),
-                        self.key_place(self.web_post_br(), 2, self.cornerrow),
+                        self.key_place(self.web_post_br(), 1, self.cornerrow),
                         self.key_place(self.web_post_tl(), 2, self.lastrow),
                         self.key_place(self.web_post_bl(), 2, self.cornerrow),
-                        self.key_place(self.web_post_br(), 3, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 2, self.lastrow),
+                        self.key_place(self.web_post_br(), 2, self.cornerrow),
+                        self.key_place(self.web_post_bl(), 3, self.cornerrow),
                     ]
                 )
             )
@@ -1229,10 +1234,10 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
-                        self.key_place(self.web_post_tl(), 3, self.lastrow),
-                        self.key_place(self.web_post_bl(), 3, self.lastrow),
-                        self.key_place(self.web_post_tl(), 3, self.lastrow),
-                        self.key_place(self.web_post_br(), 4, self.cornerrow),
+                        self.key_place(self.web_post_tr(), 3, self.lastrow),
+                        self.key_place(self.web_post_br(), 3, self.lastrow),
+                        self.key_place(self.web_post_tr(), 3, self.lastrow),
+                        self.key_place(self.web_post_bl(), 4, self.cornerrow),
                     ]
                 )
             )
@@ -1386,15 +1391,15 @@ class Dact:
         self.print_fu("back_wall()")
         x = 0
         shape = cq.Workplane('XY')
-        shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tr(), x, 0, 0, 1, self.web_post_tl()))
+        shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tl(), x, 0, 0, 1, self.web_post_tr()))
         for i in range(self.config.ncols - 1):
             x = i + 1
-            shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tr(), x, 0, 0, 1, self.web_post_tl()))
+            shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tl(), x, 0, 0, 1, self.web_post_tr()))
             shape = shape.union(self.key_wall_brace(
-                x, 0, 0, 1, self.web_post_tr(), x - 1, 0, 0, 1, self.web_post_tl()
+                x, 0, 0, 1, self.web_post_tl(), x - 1, 0, 0, 1, self.web_post_tr()
             ))
         shape = shape.union(self.key_wall_brace(
-            self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
+            self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
         ))
         return shape
 
@@ -1404,16 +1409,16 @@ class Dact:
         shape = cq.Workplane('XY')
         shape = shape.union(
             self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_tl(), self.lastcol, y, 1, 0, self.web_post_bl()
+                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
             )
         )
         for i in range(self.lastrow - 1):
             y = i + 1
             shape = shape.union(self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_tl(), self.lastcol, y, 1, 0, self.web_post_bl()
+                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
             ))
             shape = shape.union(self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_bl(), self.lastcol, y - 1, 1, 0, self.web_post_tl()
+                self.lastcol, y, 1, 0, self.web_post_br(), self.lastcol, y - 1, 1, 0, self.web_post_tr()
             ))
 
         shape = shape.union(self.key_wall_brace(
@@ -1421,12 +1426,12 @@ class Dact:
             self.cornerrow,
             0,
             -1,
-            self.web_post_bl(),
+            self.web_post_br(),
             self.lastcol,
             self.cornerrow,
             1,
             0,
-            self.web_post_bl(),
+            self.web_post_br(),
         ))
         return shape
 
@@ -1437,7 +1442,7 @@ class Dact:
             (lambda sh: self.key_place(sh, 0, 0)),
             0,
             1,
-            self.web_post_tr(),
+            self.web_post_tl(),
             (lambda sh: self.left_key_place(sh, 0, 1)),
             0,
             1,
@@ -1468,8 +1473,8 @@ class Dact:
                 self.web_post(),
             )
             temp_shape2 = self.hull_from_shapes((
-                self.key_place(self.web_post_tr(), 0, y),
-                self.key_place(self.web_post_br(), 0, y),
+                self.key_place(self.web_post_tl(), 0, y),
+                self.key_place(self.web_post_bl(), 0, y),
                 self.left_key_place(self.web_post(), y, 1),
                 self.left_key_place(self.web_post(), y, -1),
             ))
@@ -1489,8 +1494,8 @@ class Dact:
                 self.web_post(),
             )
             temp_shape2 = self.hull_from_shapes((
-                self.key_place(self.web_post_tr(), 0, y),
-                self.key_place(self.web_post_br(), 0, y - 1),
+                self.key_place(self.web_post_tl(), 0, y),
+                self.key_place(self.web_post_bl(), 0, y - 1),
                 self.left_key_place(self.web_post(), y, 1),
                 self.left_key_place(self.web_post(), y - 1, -1),
             ))
@@ -1507,7 +1512,7 @@ class Dact:
         shape = shape.union(
             self.key_wall_brace(
                 #self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
-                self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
+                self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
             )
         )
 
@@ -1522,20 +1527,20 @@ class Dact:
 
         # Wall along 4th column and along 4 - 5 column connector
         shape = shape.union(self.key_wall_brace(
-            3, self.lastrow, 0, -1, self.web_post_br(), 3, self.lastrow, 0.5, -1, self.web_post_bl()
+            3, self.lastrow, 0, -1, self.web_post_bl(), 3, self.lastrow, 0.5, -1, self.web_post_br()
         ))
         shape = shape.union(self.key_wall_brace(
-            3, self.lastrow, 0.5, -1, self.web_post_bl(), 4, self.cornerrow, 1, -1, self.web_post_br()
+            3, self.lastrow, 0.5, -1, self.web_post_br(), 4, self.cornerrow, 1, -1, self.web_post_bl()
         ))
         for i in range(self.config.ncols - 4):
             x = i + 4
             shape = shape.union(self.key_wall_brace(
-                x, self.cornerrow, 0, -1, self.web_post_br(), x, self.cornerrow, 0, -1, self.web_post_bl()
+                x, self.cornerrow, 0, -1, self.web_post_bl(), x, self.cornerrow, 0, -1, self.web_post_br()
             ))
         for i in range(self.config.ncols - 5):
             x = i + 5
             shape = shape.union(self.key_wall_brace(
-                x, self.cornerrow, 0, -1, self.web_post_br(), x - 1, self.cornerrow, 0, -1, self.web_post_bl()
+                x, self.cornerrow, 0, -1, self.web_post_bl(), x - 1, self.cornerrow, 0, -1, self.web_post_br()
             ))
 
         return shape
@@ -1550,8 +1555,7 @@ class Dact:
         wall_brace = self.wall_brace
 
         # Comments below are from the perspective of the right keyboard
-        # Code below generates the front facing planes of the thumb keys
-        # Angles/connectors between thumb key wall are done somewhere else.
+        # Code below generates the walls of the thumb keys
         if thumb_count == 2:
             # Front facing wall of the right most thumb key
             shape = shape.union(wall_brace(self.thumb_tr_place, 0, -1, self.thumb_post_br(),
@@ -1568,132 +1572,129 @@ class Dact:
             # Left wall of left most thumb key
             shape = shape.union(wall_brace(self.thumb_tl_place, -1, 0, self.thumb_post_bl(),
                                            self.thumb_tl_place, -1, 0, self.thumb_post_tl()))
-        else: # TODO: implement other thumb counts
-            shape = shape.union(
-                self.wall_brace(
-                    self.thumb_mr_place, 0, -1, self.web_post_bl(), self.thumb_tr_place, 0, -1, self.thumb_post_br()
-                )
-            )
-            shape = shape.union(self.wall_brace(
-                self.thumb_mr_place, 0, -1, self.web_post_bl(), self.thumb_mr_place, 0, -1, self.web_post_br()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_br_place, 0, -1, self.web_post_bl(), self.thumb_br_place, 0, -1, self.web_post_br()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_ml_place, -0.3, 1, self.web_post_tl(), self.thumb_ml_place, 0, 1, self.web_post_tr()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_bl_place, 0, 1, self.web_post_tl(), self.thumb_bl_place, 0, 1, self.web_post_tr()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_br_place, -1, 0, self.web_post_tr(), self.thumb_br_place, -1, 0, self.web_post_br()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_bl_place, -1, 0, self.web_post_tr(), self.thumb_bl_place, -1, 0, self.web_post_br()
-            ))
+        else: # TODO: implement other thumb counts code below is for either 5 or 6 thumb switches
+            shape = shape.union(self.wall_brace(self.thumb_mr_place, 0, -1, self.web_post_br(),
+                                                self.thumb_tr_place, 0, -1, self.thumb_post_br()))
+            shape = shape.union(self.wall_brace(self.thumb_mr_place, 0, -1, self.web_post_br(),
+                                                self.thumb_mr_place, 0, -1, self.web_post_bl()))
+            shape = shape.union(self.wall_brace(self.thumb_br_place, 0, -1, self.web_post_br(),
+                                                self.thumb_br_place, 0, -1, self.web_post_bl()))
+            shape = shape.union(self.wall_brace(self.thumb_ml_place, -0.3, 1, self.web_post_tr(),
+                                                self.thumb_ml_place, 0, 1, self.web_post_tl()))
+            shape = shape.union(self.wall_brace(self.thumb_bl_place, 0, 1, self.web_post_tr(),
+                                                self.thumb_bl_place, 0, 1, self.web_post_tl()))
+            shape = shape.union(self.wall_brace(self.thumb_br_place, -1, 0, self.web_post_tl(),
+                                                self.thumb_br_place, -1, 0, self.web_post_bl()))
+            shape = shape.union(self.wall_brace(self.thumb_bl_place, -1, 0, self.web_post_tl(),
+                                                self.thumb_bl_place, -1, 0, self.web_post_bl()))
             # thumb, corners
-            shape = shape.union(self.wall_brace(
-                self.thumb_br_place, -1, 0, self.web_post_br(), self.thumb_br_place, 0, -1, self.web_post_br()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_bl_place, -1, 0, self.web_post_tr(), self.thumb_bl_place, 0, 1, self.web_post_tr()
-            ))
+            shape = shape.union(self.wall_brace(self.thumb_br_place, -1, 0, self.web_post_bl(),
+                                                self.thumb_br_place, 0, -1, self.web_post_bl()))
+            shape = shape.union(self.wall_brace(self.thumb_bl_place, -1, 0, self.web_post_tl(),
+                                                self.thumb_bl_place, 0, 1, self.web_post_tl()))
             # thumb, tweeners
-            shape = shape.union(self.wall_brace(
-                self.thumb_mr_place, 0, -1, self.web_post_br(), self.thumb_br_place, 0, -1, self.web_post_bl()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_ml_place, 0, 1, self.web_post_tr(), self.thumb_bl_place, 0, 1, self.web_post_tl()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_bl_place, -1, 0, self.web_post_br(), self.thumb_br_place, -1, 0, self.web_post_tr()
-            ))
-            shape = shape.union(self.wall_brace(
-                self.thumb_tr_place,
-                0,
-                -1,
-                self.thumb_post_br(),
-                (lambda sh: self.key_place(sh, 3, self.lastrow)),
-                0,
-                -1,
-                self.web_post_br(),
-            ))
+            shape = shape.union(self.wall_brace(self.thumb_mr_place, 0, -1, self.web_post_bl(),
+                                                self.thumb_br_place, 0, -1, self.web_post_br()))
+            shape = shape.union(self.wall_brace(self.thumb_ml_place, 0, 1, self.web_post_tl(),
+                                                self.thumb_bl_place, 0, 1, self.web_post_tr()))
+            shape = shape.union(self.wall_brace(self.thumb_bl_place, -1, 0, self.web_post_bl(),
+                                                self.thumb_br_place, -1, 0, self.web_post_tl()))
+            shape = shape.union(self.wall_brace(self.thumb_tr_place, 0, -1, self.thumb_post_br(),
+                                                (lambda sh: self.key_place(sh, 3, self.lastrow)), 0, -1, self.web_post_bl(), ))
 
         return shape
 
+    # The left side of the thumb cluster that connects to the rest of the keyboard (as seen from the right side keyboard)
+    # TODO: work in progress porting from manuform.clj (defn second-thumb-to-body
     def thumb_connection(self):
         self.print_fu('thumb_connection()')
         shape = cq.Workplane('XY')
         # clunky bit on the top left thumb connection  (normal connectors don't work well)
+
+        # shape = shape.union(self.bottom_hull(
+        #     [
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
+        #         self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
+        #         self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
+        #     ]
+        # ))
+
+        # body-gap-default
+        # TODO: add use_inner_column and thumbcount functionality from clojure script
+        # shape = shape.union(self.bottom_hull(
+        #     [
+        #         self.thumb_ml_place(self.translate(self.thumb_post_tr(), self.wall_locate2(-0.3, 1))),
+        #         self.thumb_ml_place(self.translate(self.thumb_post_tr(), self.wall_locate3(-0.3, 1))),
+        #     ]
+        # ))
+
+        # body-gap-two
+        # TODO: add use_inner_column and thumbcount functionality from clojure script
         shape = shape.union(self.bottom_hull(
             [
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
-                ),
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
-                ),
-                self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
-                self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
+                self.thumb_tl_place(self.translate(self.thumb_post_tl(), self.wall_locate2(-1, 0))),
+                self.thumb_tl_place(self.translate(self.thumb_post_tl(), self.wall_locate3(-1, 0))),
             ]
         ))
 
-        # shape = shape.union(hull_from_shapes(
-
-        shape = shape.union(
-            self.hull_from_shapes(
+        if self.config.thumb_count == 2:
+            shape = shape.union(self.hull_from_shapes(
                 [
-                    self.left_key_place(
-                        self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
-                    ),
-                    self.left_key_place(
-                        self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
-                    ),
-                    self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
-                    self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
-                    self.thumb_tl_place(self.thumb_post_tl()),
+                    self.thumb_tl_place(self.translate(self.thumb_post_tl(), self.wall_locate3(-1, 0))),
                 ]
-            )
-        )  # )
+            ))
 
         shape = shape.union(self.hull_from_shapes(
             [
-                self.left_key_place(self.web_post(), self.cornerrow, -1),
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1
-                ),
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1
-                ),
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1
-                ),
+                self.thumb_ml_place(self.web_post_tr()), # TODO: check renaming issue tr etc
+                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate1(-0.4, 1))), #was tr
+                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate2(-0.4, 1))), #was tr
+                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate3(-0.4, 1))), #was tr
                 self.thumb_tl_place(self.thumb_post_tl()),
             ]
         ))
-
-        shape = shape.union(self.hull_from_shapes(
-            [
-                self.left_key_place(self.web_post(), self.cornerrow, -1),
-                self.left_key_place(
-                    self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1
-                ),
-                self.key_place(self.web_post_br(), 0, self.cornerrow),
-                self.key_place(self.translate(self.web_post_br(), self.wall_locate1(-1, 0)), 0, self.cornerrow),
-                self.thumb_tl_place(self.thumb_post_tl()),
-            ]
-        ))
-
-        shape = shape.union(self.hull_from_shapes(
-            [
-                self.thumb_ml_place(self.web_post_tl()),
-                self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate1(-0.3, 1))),
-                self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
-                self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
-                self.thumb_tl_place(self.thumb_post_tl()),
-            ]
-        ))
+        # shape = shape.union(
+        #     self.hull_from_shapes(
+        #         [
+        #             self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+        #             self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
+        #             self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
+        #             self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
+        #             self.thumb_tl_place(self.thumb_post_tl()),
+        #         ]
+        #     )
+        # )  # )
+        #
+        # shape = shape.union(self.hull_from_shapes(
+        #     [
+        #         self.left_key_place(self.web_post(), self.cornerrow, -1),
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1),
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
+        #         self.thumb_tl_place(self.thumb_post_tl()),
+        #     ]
+        # ))
+        #
+        # shape = shape.union(self.hull_from_shapes(
+        #     [
+        #         self.left_key_place(self.web_post(), self.cornerrow, -1),
+        #         self.left_key_place(self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1),
+        #         self.key_place(self.web_post_br(), 0, self.cornerrow),
+        #         self.key_place(self.translate(self.web_post_br(), self.wall_locate1(-1, 0)), 0, self.cornerrow),
+        #         self.thumb_tl_place(self.thumb_post_tl()),
+        #     ]
+        # ))
+        #
+        # shape = shape.union(self.hull_from_shapes(
+        #     [
+        #         self.thumb_ml_place(self.web_post_tl()),
+        #         self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate1(-0.3, 1))),
+        #         self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate2(-0.3, 1))),
+        #         self.thumb_ml_place(self.translate(self.web_post_tl(), self.wall_locate3(-0.3, 1))),
+        #         self.thumb_tl_place(self.thumb_post_tl()),
+        #     ]
+        # ))
 
         return shape
 
@@ -1928,20 +1929,20 @@ class Dact:
         # Generate the square little frames that the key switches fit into.
         shape = cq.Workplane('XY').union(self.key_holes())
 
-        self.print_model(shape, "key_holes")
+        #self.print_model(shape, "key_holes")
 
         # Connect the key switch frames together with extra material
         # This generates the top surface of the keyboard.
 
         #shape = shape.union(self.connectors())
-        #self.print_model(shape, "connectors")
+        #self.print_model(shape, "key_hole_connectors")
 
         ## Generate the thumb switch frames
-        shape = shape.union(self.thumb())
-        self.print_model(shape, "thumb_switches")
+        #shape = shape.union(self.thumb())
+        #self.print_model(shape, "thumb_switches")
         ## Generate the material between the thumb switch frames and the top surface
-        shape = shape.union(self.thumb_connectors())
-        self.print_model(shape, "thumb_conn")
+        #shape = shape.union(self.thumb_connectors())
+        #self.print_model(shape, "thumb_conn")
 
         # Generate the vertical outer walls.
         s2 = cq.Workplane('XY').union(self.case_walls())

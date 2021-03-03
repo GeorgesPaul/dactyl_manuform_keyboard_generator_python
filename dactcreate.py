@@ -38,15 +38,15 @@ def main():
 	# Note: this is the programmatic object. Not the 3D model object yet.
 	dact_right = dactylutils.Dact(conf_right_keyboard)
 
-	# Generate the 3D model
+	# # Generate the 3D model
 	mod_r = dact_right.model_right()
-
-	# Store the 3D model on disk
-	filename_right = path.join("things", r"right_og_py.step")
-	cq.exporters.export(w=mod_r, fname=filename_right, exportType='STEP')
-
-	# Print file name location of 3D model(s)
-	print(os.open(filename_right, os.O_RDONLY))
+	#
+	# # Store the 3D model on disk
+	# filename_right = path.join("things", r"right_og_py.step")
+	# cq.exporters.export(w=mod_r, fname=filename_right, exportType='STEP')
+	#
+	# # Print file name location of 3D model(s)
+	# print(os.open(filename_right, os.O_RDONLY))
 
 
 
