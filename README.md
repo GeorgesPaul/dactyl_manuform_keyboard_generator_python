@@ -5,7 +5,7 @@ This code should be slightly more organized and easier to use. In progress
 
 # Status
 
-![](/renders/status.png)
+![](renders/state.png)
 
 # How to use
 
