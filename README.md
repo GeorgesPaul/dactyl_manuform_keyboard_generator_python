@@ -3,6 +3,10 @@
 This is a fork of the Dactyl Manuform keyboard generator by joshreve: https://github.com/joshreve/dactyl-keyboard
 This code should be slightly more organized and easier to use. In progress
 
+# Status
+
+![](renders/status.png)
+
 # How to use
 
 Tested with Python 3.8 and 3.9
