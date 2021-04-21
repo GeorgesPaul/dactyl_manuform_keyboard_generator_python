@@ -1,6 +1,6 @@
 import cadquery as cq
 #from cadquery.cadquery import cq
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 import os
 import os.path as path
@@ -9,6 +9,11 @@ import os.path as path
 from scipy.spatial import ConvexHull as sphull
 import traceback
 import sys
+from typing import *
+import numba
+from array import array
+from pyquaternion import Quaternion
+import timeit
 
 #temp import for testing different code speeds:
 # import timeit
@@ -33,10 +38,36 @@ class CalcUtils:
     def rad2deg(rad: float) -> float:
         return rad * 180 / pi
 
-class Dact:
+class Dact(object):
 
     @dataclass(init = True) # Dataclass (struct) with constructor to set config values.
     class Config:
+
+        @dataclass(init=True)
+        class ThumbKeys:  # holds all locations (loc) and angles (rot) for thumb keys
+
+            tr_rot: List[float] = field(default_factory=lambda: [10, -23, 10]           )  # default: [10, -23, 10]
+            tr_loc: List[float] = field(default_factory=lambda: [-12, -16, 3]           )  # default: [-12, -16, 3]
+            tl_rot: List[float] = field(default_factory=lambda: [10, -23, 10]           )  # default: [10, -23, 10]
+            tl_loc: List[float] = field(default_factory=lambda: [-32, -15, -2]          )  # default: [-32, -15, -2]
+            mr_rot: List[float] = field(default_factory=lambda: [-6, -34, 48]           )  # default: [-6, -34, 48]
+            mr_loc: List[float] = field(default_factory=lambda: [-29, -40, -13]         )  # default: [-29, -40, -13]
+            ml_rot: List[float] = field(default_factory=lambda: [6, -34, 40]            )  # default: [6, -34, 40]
+            ml_loc: List[float] = field(default_factory=lambda: [-51, -25, -12]         )  # default: [-51, -25, -12]
+            br_rot: List[float] = field(default_factory=lambda: [-16, -33, 54]          )  # default: [-16, -33, 54]
+            br_loc: List[float] = field(default_factory=lambda: [-37.8, -55.3, -25.3]   )  # default: [-37.8, -55.3, -25.3]
+            bl_rot: List[float] = field(default_factory=lambda: [-4, -35, 52]           )  # default: [-4, -35, 52]
+            bl_loc: List[float] = field(default_factory=lambda: [-56.3, -43.3, -23.5]   )  # default: [-56.3, -43.3, -23.5]
+            # ; it dictates the location of the thumb cluster.
+            # ; the first member of the vector is x axis, second one y axis,
+            # ; while the last one is y axis.
+            # ; the higher x axis value is, the closer it to the pinky.
+            # ; the higher y axis value is, the closer it to the alphas.
+            # ; the higher z axis value is, the higher it is.
+            # (def thumb-offsets [10 -3 -3])
+            thumb_offsets : List[float] = field(default_factory=lambda:  [6, -3, 7])
+
+        thumb_keys : ThumbKeys = ThumbKeys()
         # ######################
         # ## Shape parameters ##
         # ######################
@@ -45,38 +76,31 @@ class Dact:
         # TODO: fix randomly floating thumb switch plane
         # TODO: add keycap stabilizer mountings for wider keys?
 		# TODO: implement a front_wall_x_offset and front_wall_z_offset to get some wrist rests (or alternative wrist rest implementation)
-        show_caps : bool    = True
-        use_wide_pinky : bool = True
-        use_inner_column : bool = False
-        top_rows_extra_key : bool = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
-        side_nubs_enabled  : bool = False # Enables or disabled the side nubs in the keyswitch plate that hold the (Cherry MX) switches. Not needed in most cases.
-        nrows : int         = 6  # key rows TODO: fix bug where more than 6 rows causes memory leak. Half-fixed by making style "standard" instead of ortho
-        ncols : int         = 5  # key columns
-        thumb_count : int   = 2  # TODO implement
+        show_caps           : bool  = True
+        use_wide_pinky      : bool  = True
+        use_inner_column    : bool  = False
+        top_rows_extra_key  : bool  = True # TODO: adds an extra key to the far left of the top rows (as seen from right side keyboard)
+        side_nubs_enabled   : bool  = False # Enables or disabled the side nubs in the keyswitch plate that hold the (Cherry MX) switches. Not needed in most cases.
+        last_row_count      : ""    = "zero" # zero, full or two. TODO: finish implementation based on clojure script
+        nrows               : int   = 6  # key rows TODO: fix bug where more than 6 rows causes memory leak. Half-fixed by making style "standard" instead of ortho
+        ncols               : int   = 5  # key columns
+        thumb_count         : int   = 2  # TODO implement
         #column_style        ='fixed' # options include :standard, :orthographic, and :fixed. Moved to constructor
-        alpha : float       = pi / 12.0  # curvature of the columns
-        beta : float        = pi / 36.0  # curvature of the rows
-        centerrow : int     = nrows - 3  # controls front_back tilt
-        centercol : int     = 3  # controls left_right tilt / tenting (higher number is more tenting)
-        tenting_angle : float = pi / 12.0  # or, change this for more precise tenting control
+        alpha               : float = pi / 12.0  # curvature of the columns
+        beta                : float = pi / 36.0  # curvature of the rows
+        centerrow           : int   = nrows - 3  # controls front_back tilt
+        centercol           : int   = 3  # controls left_right tilt / tenting (higher number is more tenting)
+        tenting_angle       : float = pi / 12.0  # or, change this for more precise tenting control
 
-        # ; it dictates the location of the thumb cluster.
-        # ; the first member of the vector is x axis, second one y axis,
-        # ; while the last one is y axis.
-        # ; the higher x axis value is, the closer it to the pinky.
-        # ; the higher y axis value is, the closer it to the alphas.
-        # ; the higher z axis value is, the higher it is.
-        # (def thumb-offsets [10 -3 -3])
-        thumb_offsets = [6, -3, 7]
         keyboard_z_offset = (
             9  # controls overall height# original=9 with centercol=3# use 16 for centercol=2
         )
 
-        wall_z_offset   : float     = -15  # Depth (downwards) of the first sloped part of the wall from the top of the keyboard.
-        wall_xy_offset  : float     = 5  # offset Width (sideways) of the first wall-slope from the top of the keyboard.
-        wall_thickness  : float     = 1.5  # wall thickness parameter# originally 5. Lowered a lot to make space for switch PCBs
-        left_wall_x_offset  : float = 10
-        left_wall_z_offset  : float = 3
+        wall_z_offset       : float     = -15  # Depth (downwards) of the first sloped part of the wall from the top of the keyboard.
+        wall_xy_offset      : float     = 5  # offset Width (sideways) of the first wall-slope from the top of the keyboard.
+        wall_thickness      : float     = 1.5  # wall thickness parameter# originally 5. Lowered a lot to make space for switch PCBs
+        left_wall_x_offset  : float     = 10
+        left_wall_z_offset  : float     = 3
         ## Settings for column_style == :fixed
         ## The defaults roughly match Maltron settings
         ##   http://patentimages.storage.googleapis.com/EP0219944A2/imgf0002.png
@@ -116,7 +140,7 @@ class Dact:
         mount_width = keycap_space #+ (2 * switch_plate_wall_thickness) # This determines where the column walls start. Higher number = more space between column walls
         mount_height = keycap_space   # This determines spacing between rows
         mount_thickness     :   float   = plate_thickness
-
+        thumb_plate_length = keycap_space + (7 * 2)  # The total length of thumb key frames. Keycap space + (2x 7mm).
         # SWITCH_WIDTH = 14
         # SWITCH_HEIGHT = 14
         # CLIP_THICKNESS = 1.4
@@ -158,9 +182,14 @@ class Dact:
         script_verbose_func : bool = False
         script_print_shapes : bool = False
 
-    def __init__(self, config: Config):
+        # def __init__(self, th: ThumbKeys):
+        #     self.th = th
+
+    def __init__(self, config: Config): #thumb: Config.ThumbKeys
 
         self.config = config
+        #print("tr_loc =" + str(self.config.thumb_keys.tr_loc) + " default: [-15, -16, -1]")
+
         self.script_shape_debug_counter = 0
         #######################
         ## General variables ##
@@ -214,8 +243,7 @@ class Dact:
             self.config.screw_insert_height + 1.5,
         )
         self.screw_insert_screw_holes = self.screw_insert_all_shapes(1.7, 1.7, 350)
-
-
+        self.thumb_origin = self.thumborigin()
 
     def print_fu(self, *args):
         if self.config.script_verbose_func:
@@ -348,37 +376,24 @@ class Dact:
 		# Done: replace 1.5 hardcoded by keyswitch_frame_width
         # keyswitch_frame_width holds 4 numbers that correspond to: top, right, bottom, left side of key switch frame
         top, right, bottom, left = keyswitch_frame_width
+        plate_thickness = self.config.plate_thickness
+        keyhole_w = self.config.keyswitch_hole_width
+        keyhole_h = self.config.keyswitch_hole_height
 
-        # This creates the frame around the key switch hole.
-        top_wall = cq.Workplane("XY").box(self.config.keycap_space, top, self.config.plate_thickness)
-        bottom_wall = cq.Workplane("XY").box(self.config.keycap_space, bottom, self.config.plate_thickness)
-        right_wall = cq.Workplane("XY").box(right, self.config.keycap_space, self.config.plate_thickness)
-        left_wall = cq.Workplane("XY").box(left, self.config.keycap_space, self.config.plate_thickness)
+        #starttime = timeit.default_timer()
 
-        top_wall = top_wall.translate((0,
-                                       (top / 2) + (self.config.keyswitch_hole_height / 2),
-                                       self.config.plate_thickness / 2))
+        # in case of non symmetrical (non square) key frames (to adjust hole and wall locations for columsn 1 2 and 3):
+        x_shift = right-left
+        y_shift = top-bottom
 
-        bottom_wall = bottom_wall.translate((0,
-                                             -((bottom / 2) + (self.config.keyswitch_hole_height / 2)),
-                                            self.config.plate_thickness / 2))
-
-        right_wall = right_wall.translate(((right / 2) + (self.config.keyswitch_hole_width / 2),
-                                         0,
-                                         self.config.plate_thickness / 2))
-
-        left_wall = left_wall.translate(( -((left / 2) + (self.config.keyswitch_hole_width / 2)),
-                                           0,
-                                           self.config.plate_thickness / 2))
-
-        walls = top_wall.union(right_wall)
-        walls = walls.union(bottom_wall)
-        walls = walls.union(left_wall)
-        frame_wall = walls
-        # The top wall of the frame is mirrored to form a = shape
-        #mirrored_wall = top_wall.union(self.mirror(top_wall, "XZ"))
-        # The = shape is copied, rotated and merged to form the square frame
-        #frame_wall = mirrored_wall.union(self.rotate(mirrored_wall, (0, 0, 90)))
+        # create key plate, shift keyplate (in case it's not symmetrical), create key switch hole, extrude
+        key_frame = cq.Workplane("XY").rect(keyhole_w + left + right, keyhole_h + top + bottom).center(-x_shift, -y_shift).rect(keyhole_w, keyhole_h).extrude(-plate_thickness)
+        # adjust position of key frame
+        key_frame = key_frame.translate((x_shift,y_shift,plate_thickness))
+        
+        #print("The time difference method 3 is :", timeit.default_timer() - starttime)
+        # starttime = timeit.default_timer()
+        # print("The time difference method 1 is :", timeit.default_timer() - starttime)
 
         # TODO: fix code below to work with rewritten (faster) code above
         # TODO: fix: sidenubs are now upside down? Should be flipped.
@@ -394,17 +409,8 @@ class Dact:
             side_nub2 = side_nub2.union(side_nub).union(nub_cube)
 
             plate_half1 = top_wall.union(right_wall).union(side_nub2)
-        # else:
-        #     plate_half1 = top_wall.union(right_wall)
 
-        # plate_half2 = plate_half1
-        # plate_half2 = self.mirror(plate_half2, 'XZ') # Mirror the L shaped frame along "the plane in front of you"
-        # plate_half2 = self.mirror(plate_half2, 'YZ') # Mirror the new "U shaped" frame along "the sideways plane" to from a square frame
-        #
-        # plate = plate_half1.union(plate_half2)
-        plate = frame_wall
-
-        return plate
+        return key_frame
 
     def sa_cap(self, Usize=1):
         # MODIFIED TO NOT HAVE THE ROTATION.  NEEDS ROTATION DURING ASSEMBLY
@@ -469,17 +475,7 @@ class Dact:
         return np.matmul(t_matrix, position)
 
     # apply geometry for key switch frame connectors
-    def apply_key_geometry(self,
-            shape,
-            translate_fn,
-            rotate_x_fn,
-            rotate_y_fn,
-            column,
-            row,
-            x_sh=0,
-            y_sh=0,
-            z_sh=0,
-            rot=(0,0,0)
+    def apply_key_geometry(self, shape, translate_fn, rotate_x_fn, rotate_y_fn, column, row, x_sh=0, y_sh=0, z_sh=0, rot=(0,0,0)
             #column_style = "fixed", # optional argument. Already defined in config / constructor
     ):
         self.print_fu('apply_key_geometry()' + " column style = " + self.column_style)
@@ -509,23 +505,146 @@ class Dact:
         # these functions create, move and rotate the shape to its column-row location and orientation
         # note the translate and rotate functions are callbacks
         else: #self.column_style == "fixed": # TODO: add x/y/z_sh and rot implementation to above conditions
-            # if rot != (0, 0, 0): #TODO: fix: doesn't work as expected (180 degrees doesn't flip the object)
-            #     x, y, z = rot
-            #     #shape = rotate_x_fn(shape, x)
-            #     shape = rotate_y_fn(shape, y)
             shape = translate_fn(shape, [0, 0, -self.row_radius])
             shape = rotate_x_fn(shape, self.config.alpha * (self.config.centerrow - row))
             shape = translate_fn(shape, [0, 0, self.row_radius])
             shape = translate_fn(shape, [0, 0, -self.column_radius])
             shape = rotate_y_fn(shape, column_angle)
             shape = translate_fn(shape, [x_sh, 0+y_sh, self.column_radius+z_sh])
-            shape = translate_fn(shape,self. column_offset(column))
-
+            shape = translate_fn(shape, self.column_offset(column))
 
         shape = rotate_y_fn(shape, self.config.tenting_angle)
         shape = translate_fn(shape, [0, 0, self.config.keyboard_z_offset])
 
         return shape
+
+    # Vector addition function. Example: [1,2,3] + [1,1,1] = [2, 3, 4]
+    def v_add(self, a, b):
+        c = list(map(float.__add__, a, b))
+        return c
+
+    # gets a vector [x,y,z] for a point on the keyboard based on [column,row] input
+    def get_key_xyz(self, column, row, initial_xyz_offset = [0.0,0.0,0.0], x_sh=0, y_sh=0, z_sh=0):
+        column_angle = self.config.beta * (self.config.centercol - column)
+        axis_x = [1, 0, 0]
+        axis_y = [0, 1, 0]
+        axis_z = [0, 0, 1]
+        x_sh = float(x_sh)
+        y_sh = float(y_sh)
+        z_sh = float(z_sh)
+
+        xyz = self.v_add(initial_xyz_offset, [0.0, 0.0, float(-self.row_radius)])
+        angle = self.config.alpha * (self.config.centerrow - row)
+        if angle != 0.0:
+            xyz = Quaternion(axis=axis_x, radians=angle).rotate(np.array(xyz))
+        xyz = self.v_add(xyz, [0.0, 0.0, self.row_radius])
+        xyz = self.v_add(xyz, [0.0, 0.0, -self.column_radius])
+        angle = column_angle
+        if angle != 0.0:
+            xyz = Quaternion(axis=axis_y, radians=angle).rotate(xyz)
+        xyz = self.v_add(xyz, [x_sh, 0.0 + y_sh, self.column_radius + z_sh])
+        xyz = self.v_add(xyz, self.column_offset(column))
+        angle = self.config.tenting_angle
+        #####
+        if angle != 0.0:
+            xyz = Quaternion(axis=axis_y, radians=angle).rotate(xyz)
+        xyz = self.v_add(xyz, [0.0, 0.0, self.config.keyboard_z_offset])
+
+        return xyz
+
+    def get_key_point(self, col, row, key_loc, x_sh=0.0, y_sh=0.0, z_sh=0.0):
+
+        axis_x = [1, 0, 0]
+        axis_y = [0, 1, 0]
+        axis_z = [0, 0, 1]
+        x_key : float = float(self.config.mount_width / 2)
+        y_key : float = float(self.config.mount_height / 2)
+        z_key : float = float(z_sh)
+        xyz: List[float] = []
+
+        if key_loc == "tr":
+            pass
+        elif key_loc == "br":
+            y_key = float(-y_key)
+        elif key_loc == "tl":
+            x_key = float(-x_key)
+        elif key_loc == "bl":
+            y_key = float(-y_key)
+            x_key = float(-x_key)
+        else:
+            self.print_debug("Invalid key_loc argument passed to get_key_point_array. Values have to be one of the following strings: tr, br, tl, bl")
+            os.exit
+
+
+        xyz = self.get_key_xyz(col, row, [x_key + x_sh, y_key + y_sh, z_key + z_sh])
+        # print(key_loc)
+        # print(str(x_key) + " " + str(y_key)+ " " + str(z_key))
+        # print(str(xyz))
+
+        return xyz
+
+    def get_thumb_point(self, thumb_key, key_loc, x_sh=0.0, y_sh=0.0, z_sh=0.0):
+        axis_x = [1, 0, 0]
+        axis_y = [0, 1, 0]
+        axis_z = [0, 0, 1]
+        x_key: float = float(self.config.mount_width / 2)
+        y_key: float = float(self.config.thumb_plate_length / 2)
+        z_key: float = float(z_sh)
+        xyz : List[float] = []
+        loc : List[float] = []
+        angle: List[float] = []
+        th          = self.config.thumb_keys
+
+        # How a thumb key frame is placed:
+        # 1. 3D model points at location 0,0,0 (origin)
+        # 2. Rotate thumb frame to desired angle
+        # 3. Move to thumb origin
+        # 4. Move to final location
+
+        if key_loc == "tr":
+            pass
+        elif key_loc == "br":
+            y_key = float(-y_key)
+        elif key_loc == "tl":
+            x_key = float(-x_key)
+        elif key_loc == "bl":
+            y_key = float(-y_key)
+            x_key = float(-x_key)
+        else:
+            self.print_debug("Invalid key_loc argument passed to get_key_point_array. Values have to be one of the following strings: tr, br, tl, bl")
+            os.exit
+
+        xyz = [x_key, y_key, z_key]
+
+        if      "tl" in thumb_key:
+            loc     = th.tl_loc
+            angle   = th.tl_rot
+        elif    "tr" in thumb_key:
+            loc     = th.tr_loc
+            angle   = th.tr_rot
+        elif    "ml" in thumb_key:
+            loc     = th.ml_loc
+            angle   = th.ml_rot
+        elif    "mr" in thumb_key:
+            loc     = th.mr_loc
+            angle   = th.mr_rot
+        elif    "bl" in thumb_key:
+            loc     = th.bl_loc
+            angle   = th.bl_rot
+        elif    "br" in thumb_key:
+            loc     = th.br_loc
+            angle   = th.br_rot
+        else:
+            self.print_debug("Invalid thumb_key argument passed to get_key_point_array. Values have to be one of the following strings: tr, br, tl, bl")
+            os.exit
+
+        xyz = Quaternion(axis=axis_x, degrees=angle[0]).rotate(np.array(xyz))
+        xyz = Quaternion(axis=axis_y, degrees=angle[1]).rotate(np.array(xyz))
+        xyz = Quaternion(axis=axis_z, degrees=angle[2]).rotate(np.array(xyz))
+
+        xyz = self.v_add(xyz, self.v_add(self.thumb_origin, loc))
+
+        return xyz
 
     def x_rot(self, shape, angle):
         # print_fu('x_rot()')
@@ -560,7 +679,7 @@ class Dact:
         self.print_fu('key_holes()')
         # hole = single_plate()
         a = self.keyswitch_frame_width
-        b = self.keyswitch_frame_width + self.config.switch_plate_wall_thickness + 0.5
+        b = self.keyswitch_frame_width + self.config.switch_plate_wall_thickness
         keyswitch_frame_widths = (a, a, a, a) # standard key switch plane frames are square and symmetrical
         holes = []
         for column in range(self.config.ncols):
@@ -582,8 +701,13 @@ class Dact:
 
     def caps(self):
         caps = None
+        if self.config.last_row_count == "zero":
+            lastrow = self.lastrow
+        else:
+            lastrow = self.config.nrows
+
         for column in range(self.config.ncols):
-            for row in range(self.lastrow): #self.config.nrows
+            for row in range(lastrow): #self.config.nrows
                 #if (column in [2, 3]) or (not row == self.lastrow):
                 if caps is None:
                     caps = self.key_place(self.sa_cap(), column, row)
@@ -604,7 +728,7 @@ class Dact:
         else:
             post = cq.Workplane("XY").box(post_size, post_size, cust_web_thick)
 
-        post = post.translate((0, 0, plate_thickness - (web_thickness / 2)))
+        post = post.translate((0, 0, plate_thickness - (web_thickness / 2))) #plate_thickness - (web_thickness / 2)
 
         return post
 
@@ -683,16 +807,17 @@ class Dact:
         return shape
 
     # Alternative functions by Georges to avoid "skinny wall" problem when column edges are overlapping instead of side by side
-    def web_post_tl_g(self, custom_thick = 1.5, col = 1):
+    # was tl
+    def web_post_tr_g(self, custom_thick = 1.5, col = 1):
         # self.print_fu('web_post_tl()')
         # adjustment of location of top/bottom connector, when connector thickness is greater then key plate thickness.
-        z_adj = self.config.plate_thickness / 2 #self.config.post_adj # moves column walls upwards slightly to merge properly
+        z_adj = 0#self.config.plate_thickness / 2 #self.config.post_adj # moves column walls upwards slightly to merge properly
         bot_adj = self.config.post_adj # adjust the x position of the bottom of the column walls
         top_adj = 0#custom_thick # adjust the top of the wall to fit snugly under the key switch frame
         shape = self.web_post(custom_thick) # get a basic "plank" shape with custom_thick thickness
         shape = self.rotate(shape, (0,90,0)) #rotate the shape (Georges fix, to avoid "skinny walls")
 
-        x = (self.config.mount_width / 2) + top_adj # top_adj makes wider along row
+        x = (self.config.mount_width / 2) + top_adj# top_adj makes wider along row
         y = (self.config.mount_height / 2) - self.config.post_adj # post_adj makes wider along column
         if col == 1:
             x = (self.config.mount_width / 2) - bot_adj # make the bottom wall to wall distance wider instead of top
@@ -702,9 +827,10 @@ class Dact:
                                     z_adj)) # (z)
         return shape
 
-    def web_post_bl_g(self, custom_thick = 1.5, col = 1):
+    # was bl
+    def web_post_br_g(self, custom_thick = 1.5, col = 1):
         # self.print_fu('web_post_bl()')
-        z_adj = self.config.plate_thickness / 2 #self.config.post_adj
+        z_adj = 0#self.config.plate_thickness / 2 #self.config.post_adj
         bot_adj = self.config.post_adj  # adjust the x position of the bottom of the column walls
         top_adj = 0#custom_thick  # adjust the top of the wall to fit snugly under the key switch frame
         shape = self.web_post(custom_thick) # get a basic "plank" shape with custom_thick thickness
@@ -720,9 +846,10 @@ class Dact:
                                     z_adj))
         return shape
 
-    def web_post_tr_g(self, custom_thick = 1.5, col = 1):
+    # was tr
+    def web_post_tl_g(self, custom_thick = 1.5, col = 1):
         # self.print_fu('web_post_tr()')
-        z_adj = self.config.plate_thickness / 2 #self.config.post_adj
+        z_adj = 0#self.config.plate_thickness / 2 #self.config.post_adj
         bot_adj = self.config.post_adj  # adjust the x position of the bottom of the column walls
         top_adj = 0#custom_thick  # adjust the top of the wall to fit snugly under the key switch frame
         shape = self.web_post(custom_thick)  # get a basic "plank" shape with custom_thick thickness
@@ -730,7 +857,7 @@ class Dact:
 
         x = -(self.config.mount_width / 2)  + top_adj # top_adj makes wider along row
         y = (self.config.mount_height / 2) - self.config.post_adj # post_adj makes wider along column
-        if col == 2:
+        if col == 2: # TODO: remove? seems like top_adj and bot_adj = 0 now and the conditional doesn't add anything. to test.
             x = -(self.config.mount_width / 2) - bot_adj
 
         shape = shape.translate(  ( x, #- self.config.post_adj
@@ -739,9 +866,10 @@ class Dact:
 
         return shape
 
-    def web_post_br_g(self, custom_thick = 1.5, col = 1):
+    # was br
+    def web_post_bl_g(self, custom_thick = 1.5, col = 1):
         # self.print_fu('web_post_br()')
-        z_adj = self.config.plate_thickness / 2 #self.config.post_adj
+        z_adj = 0#self.config.plate_thickness / 2 #self.config.post_adj
         bot_adj = self.config.post_adj  # adjust the x position of the bottom of the column walls
         top_adj = 0#custom_thick  # adjust the top of the wall to fit snugly under the key switch frame
         shape = self.web_post(custom_thick) # get a basic "plank" shape with custom_thick thickness
@@ -758,10 +886,23 @@ class Dact:
 
         return shape
 
+    # Creates octangular shape for every 8 geometries in shapes
+    def octangle_hulls(self, shapes):
+        self.print_fu('octangle_hulls()')
+        hulls = [cq.Workplane('XY')]
+        count = int((len(shapes) / 8))
+        for i in range(count):
+            #print(str(i) + "  " + str(i + 7) + " " + str(count))
+            hulls.append(self.hull_from_shapes(shapes[i: (i + 8)]))
+
+        return self.union(hulls)
+
+    # Creates a shape for every 4 shapes entered in shapes
     def triangle_hulls(self, shapes):
         self.print_fu('triangle_hulls()')
         hulls = [cq.Workplane('XY')]
         for i in range(len(shapes) - 2):
+            #print(str(i) + "  " + str(i+3) + " " + str(range(len(shapes) - 2)))
             hulls.append(self.hull_from_shapes(shapes[i: (i + 3)]))
 
         return self.union(hulls)
@@ -772,6 +913,7 @@ class Dact:
         hulls = []
         thickness_mm = self.config.switch_plate_wall_thickness
         col_count = self.config.ncols - 1
+        z_sh = self.config.plate_thickness * 0.9# shifts walls of columns 3 and 4 slightly up
         if self.config.use_inner_column:
             col_count = col_count + 1
 
@@ -783,67 +925,180 @@ class Dact:
                 # The greyed out bits below are in case a keyboard has more than 5 rows and you want to have 1
                 # two extra buttons (extra row) under columns 3 and 4. Would need more work.
                 #if ((row == self.lastrow) and (column == 2)) or ((column in [1,2,3]) and (row != self.lastrow)): #these columns get different connectors, to avoid "skinny wall" bug
+
+
                 if (column in [1,2,3]):
                     if column == 1:
-                        x_sh = 0.55 - (0.5 * thickness_mm) # 0.2
+                        #x_sh = 0.8 - (0.5 * thickness_mm) # 0.2
+                        col_high = column # high and low refer to one key being above the other.
+                        col_low = column + 1
+                        side_h = "r" # h = high, l = low
+                        side_l = "l"
+                        z_sh = self.config.plate_thickness / 2
+                        x_sh = -self.config.switch_plate_wall_thickness
                     else:
-                        x_sh = 0.55 + (0.5 * thickness_mm) # 1.3
-                    places.append(self.key_place(self.web_post_tr_g(thickness_mm, column +1), column + 1, row, x_sh))
-                    places.append(self.key_place(self.web_post_tl_g(thickness_mm, column), column, row, x_sh))
-                    places.append(self.key_place(self.web_post_br_g(thickness_mm, column +1), column + 1, row, x_sh))
-                    places.append(self.key_place(self.web_post_bl_g(thickness_mm, column), column, row, x_sh))
-                #elif (row != self.lastrow):
+                        #x_sh = 0.8 + (0.5 * thickness_mm) # 1.3
+                        side_h = "l"
+                        side_l = "r"
+                        col_high = column + 1
+                        col_low = column
+                        z_sh = self.config.plate_thickness / 2
+                        x_sh = self.config.switch_plate_wall_thickness
+
+                    places = []
+                    places.append(self.get_key_point(col_high, row, "t" + side_h, z_sh = z_sh))
+                    places.append(self.get_key_point(col_high, row, "t" + side_h, x_sh = x_sh, z_sh = z_sh))
+                    places.append(self.get_key_point(col_high, row, "b" + side_h, x_sh = x_sh, z_sh = z_sh))
+                    places.append(self.get_key_point(col_high, row, "b" + side_h, z_sh = z_sh))
+                    places.append(self.get_key_point(col_low, row, "b" + side_l,                    z_sh = z_sh))
+                    places.append(self.get_key_point(col_low, row, "b" + side_l, x_sh = x_sh,       z_sh = z_sh))
+                    places.append(self.get_key_point(col_low, row, "t" + side_l, x_sh = x_sh,       z_sh = z_sh))
+                    places.append(self.get_key_point(col_low, row, "t" + side_l,                    z_sh = z_sh))
+                    hulls.append(self.hull_from_points(places))
+                    places = []
+
                 else:
-                    places.append(self.key_place(self.web_post_tl(), column + 1, row))
-                    places.append(self.key_place(self.web_post_tr(), column, row))
-                    places.append(self.key_place(self.web_post_bl(), column + 1, row))
-                    places.append(self.key_place(self.web_post_br(), column, row))
+                    plate = self.config.plate_thickness / 2
+                    z_sh = - (self.config.web_thickness / 2) + plate
 
-                if len(places): # if arrray is not empty
-                    hulls.append(self.triangle_hulls(places))
+                    # The original (old) code below is 15x slower than the new code.
+                    # Replaced code below by code that generates hulls based on points.
+                    # places.append(self.key_place(self.web_post_tl(), column + 1, row))
+                    # places.append(self.key_place(self.web_post_tr(), column, row))
+                    # places.append(self.key_place(self.web_post_bl(), column + 1, row))
+                    # places.append(self.key_place(self.web_post_br(), column, row))
+                    #
+                    # if len(places): # if arrray is not empty
+                    #     hulls.append(self.triangle_hulls(places))
+                    #     places = []
 
-        #self.print_model(self.union(hulls), "connectors1st")
+                    # new code:
+                    places = []
+                    places.append(self.get_key_point(column + 1, row, "tl"  , z_sh = plate))
+                    places.append(self.get_key_point(column,     row, "tr"  , z_sh = plate))
+                    places.append(self.get_key_point(column + 1, row, "bl"  , z_sh = plate))
+                    places.append(self.get_key_point(column,     row, "br"  , z_sh = plate))
+                    places.append(self.get_key_point(column + 1, row, "tl"  , z_sh = z_sh))
+                    places.append(self.get_key_point(column,     row, "tr"  , z_sh = z_sh))
+                    places.append(self.get_key_point(column + 1, row, "bl"  , z_sh = z_sh))
+                    places.append(self.get_key_point(column,     row, "br"  , z_sh = z_sh))
+
+                    hulls.append(self.hull_from_points(places))
+                    # starttime = timeit.default_timer()
+                    # print("The time difference method 1 is :", timeit.default_timer() - starttime)
 
         # This iteration places the horizontal "planks" on the top and bottom of key hole frames
         for column in range(self.config.ncols):
             # for row in range(nrows-1):
             for row in range(self.cornerrow):
-                if column == 3: # shift the plank on column 3 slightly to the right. keyframe not symmetrical
-                    x_sh = 1.55
+                if column == 2: # shift the plank on column 3 slightly to the right. keyframe not symmetrical
+                    x_sh_l = -self.config.web_thickness
+                    x_sh_r = self.config.web_thickness
+                elif column == 3:
+                    x_sh_l = 0
+                    x_sh_r = self.config.web_thickness
                 else:
-                    x_sh = 0
+                    x_sh_l = 0
+                    x_sh_r = 0
 
+                z_sh = (self.config.plate_thickness / 2)
+                thickness =  -(self.config.web_thickness / 2) + z_sh
+                #width =
                 places = []
-                places.append(self.key_place(self.web_post_bl(column), column, row, x_sh))
-                places.append(self.key_place(self.web_post_br(column), column, row, x_sh))
-                places.append(self.key_place(self.web_post_tl(column), column, row + 1, x_sh))
-                places.append(self.key_place(self.web_post_tr(column), column, row + 1, x_sh))
+                places.append(self.get_key_point(column, row,   "bl", x_sh= x_sh_l, z_sh=z_sh))
+                places.append(self.get_key_point(column, row,   "br", x_sh= x_sh_r, z_sh=z_sh))
+                places.append(self.get_key_point(column, row+1, "tl", x_sh= x_sh_l, z_sh=z_sh))
+                places.append(self.get_key_point(column, row+1, "tr", x_sh= x_sh_r, z_sh=z_sh))
+                places.append(self.get_key_point(column, row+1, "tr", x_sh= x_sh_r, z_sh=thickness))
+                places.append(self.get_key_point(column, row+1, "tl", x_sh= x_sh_l, z_sh=thickness))
+                places.append(self.get_key_point(column, row,   "br", x_sh= x_sh_r, z_sh=thickness))
+                places.append(self.get_key_point(column, row,   "bl", x_sh= x_sh_l, z_sh=thickness))
 
-                hulls.append(self.triangle_hulls(places))
+                # places.append(self.get_key_point(column, row,   "bl", x_sh= x_sh_l, z_sh=z_sh))
+                # places.append(self.get_key_point(column, row,   "br", x_sh= x_sh_r, z_sh=z_sh))
+                # places.append(self.get_key_point(column, row+1, "tl", x_sh= x_sh_l, z_sh=z_sh))
+                # places.append(self.get_key_point(column, row+1, "tr", x_sh= x_sh_r, z_sh=z_sh))
+                #
+                # places.append(self.get_key_point(column+1, row+1, "tl", x_sh=x_sh_l, z_sh=0))
+                # places.append(self.get_key_point(column + 1, row, "bl", x_sh=x_sh_l, z_sh=0))
+                # places.append(self.get_key_point(column, row, "bl", x_sh=x_sh_l, z_sh=thickness))
+                # places.append(self.get_key_point(column, row + 1, "tl", x_sh=x_sh_l, z_sh=thickness))
 
+
+                hulls.append(self.hull_from_points(places))
+                places = []
         #self.print_model(self.union(hulls), "connectors2nd")
 
         thickness_mm = self.config.web_thickness
         # This iteration fills up the empty squares between the corners of key hole frames
+        # This is the web of thicker frame elements
         for column in range(self.config.ncols - 1):
             # for row in range(nrows-1):  # need to consider last_row?
             for row in range(self.cornerrow):  # need to consider last_row?
                 places = []
                 if (column in [1,2,3]): # These columns get different connectors to match skinny wall fix
                     if column == 1:
-                        x_sh = - 0.9 # 0.85
+                        # x_sh = 0.8 - (0.5 * thickness_mm) # 0.2
+                        col_high = column
+                        col_low = column + 1
+                        side_h = "r"
+                        side_l = "l"
+                        z_sh = self.config.plate_thickness / 2
+                        x_sh = -self.config.web_thickness#- self.config.switch_plate_wall_thickness #
                     else:
-                        x_sh = 2 # 2
-                    places.append(self.key_place(self.web_post_bl_g(thickness_mm, column), column, row, x_sh))
-                    places.append(self.key_place(self.web_post_tl_g(thickness_mm, column), column, row+1, x_sh))
-                    places.append(self.key_place(self.web_post_br_g(thickness_mm, column + 1), column+1, row, x_sh))
-                    places.append(self.key_place(self.web_post_tr_g(thickness_mm, column + 1), column+1, row+1, x_sh))
+                        # x_sh = 0.8 + (0.5 * thickness_mm) # 1.3
+                        side_h = "l"
+                        side_l = "r"
+                        col_high = column + 1
+                        col_low = column
+                        z_sh = self.config.plate_thickness / 2
+                        x_sh = self.config.web_thickness #self.config.switch_plate_wall_thickness
+
+                    places = []
+
+                    #z_depth = 0#-self.config.web_thickness
+                    places.append(self.get_key_point(col_high, row,   "b" + side_h, z_sh=z_sh))
+                    places.append(self.get_key_point(col_high, row,   "b" + side_h, x_sh=x_sh, z_sh=z_sh))
+                    places.append(self.get_key_point(col_high, row+1, "t" + side_h, x_sh=x_sh, z_sh=z_sh))
+                    places.append(self.get_key_point(col_high, row+1, "t" + side_h, z_sh=z_sh))
+
+                    # places.append(self.get_key_point(col_high, row, "b" + side_h, z_sh=-z_sh*2))
+                    # places.append(self.get_key_point(col_high, row, "b" + side_h, x_sh=x_sh, z_sh=-z_sh*2))
+                    # places.append(self.get_key_point(col_high, row + 1, "t" + side_h, x_sh=x_sh, z_sh=-z_sh*2))
+                    # places.append(self.get_key_point(col_high, row + 1, "t" + side_h, z_sh=-z_sh*2))
+
+                    places.append(self.get_key_point(col_low , row,   "b" + side_l, z_sh=z_sh))
+                    places.append(self.get_key_point(col_low , row,   "b" + side_l, x_sh=x_sh, z_sh=z_sh))
+                    places.append(self.get_key_point(col_low , row+1, "t" + side_l, x_sh=x_sh, z_sh=z_sh))
+                    places.append(self.get_key_point(col_low , row+1, "t" + side_l, z_sh=z_sh))
+
+                    hulls.append(self.hull_from_points(places))
+                    places = []
                 else:
-                    places.append(self.key_place(self.web_post_br(), column, row))
-                    places.append(self.key_place(self.web_post_tr(), column, row + 1))
-                    places.append(self.key_place(self.web_post_bl(), column + 1, row))
-                    places.append(self.key_place(self.web_post_tl(), column + 1, row + 1))
-                hulls.append(self.triangle_hulls(places))
+                    places = []
+                    z_sh_upward = self.config.plate_thickness / 2
+                    z_sh_thickness = - (self.config.web_thickness / 2) + z_sh_upward
+
+                    places.append(self.get_key_point(column,     row,     "br", z_sh=z_sh_upward))
+                    places.append(self.get_key_point(column,     row + 1, "tr", z_sh=z_sh_upward))
+                    places.append(self.get_key_point(column + 1, row,     "bl", z_sh=z_sh_upward))
+                    places.append(self.get_key_point(column + 1, row + 1, "tl", z_sh=z_sh_upward))
+                    places.append(self.get_key_point(column,     row,     "br", z_sh=z_sh_thickness))
+                    places.append(self.get_key_point(column,     row + 1, "tr", z_sh=z_sh_thickness))
+                    places.append(self.get_key_point(column + 1, row,     "bl", z_sh=z_sh_thickness))
+                    places.append(self.get_key_point(column + 1, row + 1, "tl", z_sh=z_sh_thickness))
+
+                    hulls.append(self.hull_from_points(places))
+                    places = []
+
+                    # slow code: removed.
+                    #places.append(self.key_place(self.web_post_br(), column, row))
+                    #places.append(self.key_place(self.web_post_tr(), column, row + 1))
+                    #places.append(self.key_place(self.web_post_bl(), column + 1, row))
+                    #places.append(self.key_place(self.web_post_tl(), column + 1, row + 1))
+                    #
+                    #if len(places):  # if arrray is not empty
+                    #    hulls.append(self.triangle_hulls(places))
 
         #self.print_model(self.union(hulls), "connectors3rd")
 
@@ -861,51 +1116,60 @@ class Dact:
         # ; and then added by some values, including thumb-offsets above.
         origin = self.key_position([ self.config.mount_width / 2, -(self.config.mount_height / 2), 0], 1, self.cornerrow)
         for i in range(len(origin)):
-            origin[i] = origin[i] + self.config.thumb_offsets[i]
+            origin[i] = origin[i] + self.config.thumb_keys.thumb_offsets[i]
         return origin
 
     # Thumb key angles / rotation
     # TODO: make angles and locations part of config
     def thumb_tr_place(self, shape):
         self.print_fu('thumb_tr_place()')
-        shape = self.rotate(shape, [-15, 35, 10]) # rotate [10, -23, 10]
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-15, -16, -1]) # move [-12, -16, 3]
+        thumb = self.config.thumb_keys
+        #shape = self.rotate(shape, [-15, 35, 10]) # rotate [10, -23, 10]
+        #print(str(self.config.th.tr_loc))
+        shape = self.rotate(shape,  thumb.tr_rot)
+        shape = shape.translate(self.thumb_origin)
+        #shape = shape.translate([-15, -16, -1]) # move [-12, -16, 3]
+        shape = shape.translate(    thumb.tr_loc)
         return shape
 
     def thumb_tl_place(self, shape):
         self.print_fu('thumb_tl_place()')
-        shape = self.rotate(shape, [-15, 50, 10]) # rotate [10, -23, 10]
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-35, -15, 10]) # move [-32, -15, -2]
+        thumb = self.config.thumb_keys
+        shape = self.rotate(shape,  thumb.tl_rot ) # rotate [10, -23, 10]
+        shape = shape.translate(self.thumb_origin)
+        shape = shape.translate(    thumb.tl_loc )# move [-32, -15, -2]
         return shape
 
     def thumb_mr_place(self, shape):
         self.print_fu('thumb_mr_place()')
-        shape = self.rotate(shape, [-6, -34, 48])
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-29, -40, -13])
+        thumb = self.config.thumb_keys
+        shape = self.rotate(shape,  thumb.mr_rot)
+        shape = shape.translate(self.thumb_origin)
+        shape = shape.translate(    thumb.mr_loc)
         return shape
 
     def thumb_ml_place(self, shape):
         self.print_fu('thumb_ml_place()')
-        shape = self.rotate(shape, [6, -34, 40])
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-51, -25, -12])
+        thumb = self.config.thumb_keys
+        shape = self.rotate(shape,  thumb.ml_rot)
+        shape = shape.translate(self.thumb_origin)
+        shape = shape.translate(    thumb.ml_loc)
         return shape
 
     def thumb_br_place(self, shape):
         self.print_fu('thumb_br_place()')
-        shape = self.rotate(shape, [-16, -33, 54])
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-37.8, -55.3, -25.3])
+        thumb = self.config.thumb_keys
+        shape = self.rotate(shape,  thumb.br_rot)
+        shape = shape.translate(self.thumb_origin)
+        shape = shape.translate(    thumb.br_loc)
         return shape
 
     def thumb_bl_place(self, shape):
         self.print_fu('thumb_bl_place()')
-        shape = self.rotate(shape, [-4, -35, 52])
-        shape = shape.translate(self.thumborigin())
-        shape = shape.translate([-56.3, -43.3, -23.5])
+        thumb = self.config.thumb_keys
+        shape = self.rotate(shape,  thumb.bl_rot)
+        shape = shape.translate(self.thumb_origin)
+        shape = shape.translate(    thumb.bl_loc)
         return shape
 
     # not sure what this does? Draws caps?
@@ -978,10 +1242,10 @@ class Dact:
         ## SA Keycaps ##
         ################
         #sa_length = 18.25
-        sa_double_length = 2 + (self.config.keycap_space * 2) # 37.5
-
+        thumb_plate_len = self.config.thumb_plate_length # 37.5
+        # 40
         self.print_fu('double_plate()')
-        plate_height = (sa_double_length - self.config.mount_height) / 3
+        plate_height = (thumb_plate_len - self.config.keycap_space) / 2 #7.. 33
         # plate_height = (2*sa_length-self.config.mount_height) / 3
         top_plate = cq.Workplane("XY").box( self.config.mount_width, plate_height, self.config.web_thickness)
         top_plate = self.translate(top_plate,
@@ -1036,7 +1300,7 @@ class Dact:
         self.print_fu('thumb_connectors()')
         hulls = []
         thumb_count = self.config.thumb_count
-
+        conn_thickness = self.config.switch_plate_wall_thickness
         #if thumb_count == 0:    # TODO
 
         if thumb_count == 1:  # TODO
@@ -1053,7 +1317,14 @@ class Dact:
 
         if thumb_count >= 2:  # TODO
             print("top left")
-            # Top left
+            thickness_mm = self.config.switch_plate_wall_thickness
+            x_sh_col1 = 0.7 - (0.5 * thickness_mm) # shift in the x direction for column 1 connectors
+            x_sh_col2 = 0.7 + (0.5 * thickness_mm)  # shift in the x direction for column 2 connectors
+            x_sh_col3 = 1.7
+            y_sh = 0.3
+            z_sh = self.config.plate_thickness
+
+            # This does the connector between the two thumb key hole frames
             hulls.append(
                 self.triangle_hulls(
                     [
@@ -1078,44 +1349,55 @@ class Dact:
             hulls.append(
                 self.triangle_hulls(
                     [
+                        #; top two thumb keys to the main keyboard, starting on the left going to the right
+                        # thumb_tl/tr refer to the entire left and right thumb keys (not to left or right connector)
                         self.thumb_tl_place(self.thumb_post_tl()),
                         self.key_place(self.web_post_bl(), 0, thumb_corner_row),
                         self.thumb_tl_place(self.thumb_post_tr()),
                         self.key_place(self.web_post_br(), 0, thumb_corner_row),
                         self.thumb_tr_place(self.thumb_post_tl()),
                         self.key_place(self.web_post_bl(), 1, thumb_corner_row),
+                          # 2cornerrow  #  1 You'll have to mess around with this number as you move the thumb clusters back and forward by more than a few mm
+
+# TODO : adjustments toevoegen aan _g() functies. Toevoegen in _g zelf?
+                        # The code below is for the "triangle shaped plate" next to the thumb switches
+
+                        # "lip" from thumb keys to thumb key walls
                         self.thumb_tr_place(self.thumb_post_tr()),
-                        # self.key_place(self.web_post_bl(), 1, self.cornerrow),
-                        self.key_place(self.web_post_br(), 1, thumb_corner_row),  #cornerrow  #  1 You'll have to mess around with this number as you move the thumb clusters back and forward by more than a few mm
-                        self.thumb_tr_place(self.thumb_post_br()),
-                        self.key_place(self.web_post_bl(), 2, thumb_corner_row), #2
-                        # TODO: translate the following from clojure to Python
-                        # (case row-count
-                        # :zero ()
-                        # (key - place c 2 lastrow web - post - bl))
-                        self.key_place(self.web_post_bl(), 2, thumb_corner_row), #2 self.lastrow
-                        self.key_place(self.web_post_br(), 2, thumb_corner_row), #2 self.lastrow
-                        self.thumb_tr_place(self.thumb_post_br()),
-                        self.key_place(self.web_post_bl(), 3, thumb_corner_row), # was 3 #self.lastrow
+                        self.key_place(self.web_post_br_g(conn_thickness), 1, thumb_corner_row, x_sh_col1, y_sh, z_sh),
+                        # self.thumb_tr_place(self.thumb_post_br()),
+                        # self.key_place(self.web_post_bl_g(conn_thickness), 2, thumb_corner_row, x_sh_col1, y_sh, z_sh), #2 connection from 2nd thumb right wall to 2nd column wall
+                        # self.thumb_tr_place(self.thumb_post_br()),
+                        # self.key_place(self.web_post_br_g(conn_thickness), 2, thumb_corner_row, x_sh_col2, y_sh, z_sh), # by G to make triangle thicker
+                        #
+                        #
+                        # self.key_place(self.web_post_br_g(conn_thickness), 2, thumb_corner_row, x_sh_col2, 0, -0.2), # by G to make triangle thicker
+                        #
+                        # self.key_place(self.web_post_bl_g(conn_thickness), 2, thumb_corner_row, x_sh_col2, 0, -4), #2 self.lastrow
+                        # self.key_place(self.web_post_br_g(conn_thickness), 2, thumb_corner_row, x_sh_col2, 0, -4), #2 self.lastrow
+                        # # The point that connects the "triangle" next to the thumb keys to the keyboard (right wall 3rd column)
+                        # self.thumb_tr_place(self.thumb_post_br()),
+                        # self.key_place(self.web_post_bl_g(conn_thickness), 3, thumb_corner_row, x_sh_col3), # was 3 #self.lastrow
                     ]
-                )
-            )
-            # right most triangles?
-            hulls.append(
-                self.triangle_hulls(
-                    [   # important note: assuming 7 column 6 row config for example:
-                        # column 1 and 2 have 5 rows (+ thumb rows),
-                        # column 3 and 4 have 6 rows.
-                        # colums after 5 have 5 rows again
-                        self.key_place(self.web_post_tl(), 2, thumb_last_row),   #self.lastrow
-                        self.key_place(self.web_post_bl(), 2, thumb_last_row),  #self.cornerrow
-                        self.key_place(self.web_post_tr(), 2, thumb_last_row),    #self.lastrow
-                        self.key_place(self.web_post_br(), 2, thumb_last_row),  #self.cornerrow
-                        self.key_place(self.web_post_bl(), 3, thumb_last_row), #  3 cornerrow
-                    ]
-                )
-            )
-            return self.union(hulls)
+                ))
+
+
+            # # right most triangles?
+            # hulls.append(
+            #     self.triangle_hulls(
+            #         [   # important note: assuming 7 column 6 row config for example:
+            #             # column 1 and 2 have 5 rows (+ thumb rows),
+            #             # column 3 and 4 have 6 rows.
+            #             # colums after 5 have 5 rows again TODO: this all depends on use_inner_column and/or last_row_count (zero, full etc)
+            #             self.key_place(self.web_post_tl(), 2, thumb_last_row),   #self.lastrow
+            #             self.key_place(self.web_post_bl(), 2, thumb_corner_row),  #self.cornerrow
+            #             self.key_place(self.web_post_tr(), 2, thumb_last_row),    #self.lastrow
+            #             self.key_place(self.web_post_br(), 2, thumb_corner_row),  #self.cornerrow
+            #             self.key_place(self.web_post_bl(), 3, thumb_corner_row), #  3 cornerrow
+            #         ]
+            #     )
+            # )
+
         # if thumb_count == 3:  # TODO
         #
         # if thumb_count == 4:  # TODO
@@ -1395,8 +1677,7 @@ class Dact:
         for i in range(self.config.ncols - 1):
             x = i + 1
             shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tl(), x, 0, 0, 1, self.web_post_tr()))
-            shape = shape.union(self.key_wall_brace(
-                x, 0, 0, 1, self.web_post_tl(), x - 1, 0, 0, 1, self.web_post_tr()
+            shape = shape.union(self.key_wall_brace(x, 0, 0, 1, self.web_post_tl(), x - 1, 0, 0, 1, self.web_post_tr()
             ))
         shape = shape.union(self.key_wall_brace(
             self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
@@ -1409,29 +1690,24 @@ class Dact:
         shape = cq.Workplane('XY')
         shape = shape.union(
             self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
+                self.lastcol, y, 1, 0, self.web_post_tr(),
+                self.lastcol, y, 1, 0, self.web_post_br()
             )
         )
         for i in range(self.lastrow - 1):
             y = i + 1
             shape = shape.union(self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_tr(), self.lastcol, y, 1, 0, self.web_post_br()
+                self.lastcol, y, 1, 0, self.web_post_tr(),
+                self.lastcol, y, 1, 0, self.web_post_br()
             ))
             shape = shape.union(self.key_wall_brace(
-                self.lastcol, y, 1, 0, self.web_post_br(), self.lastcol, y - 1, 1, 0, self.web_post_tr()
+                self.lastcol, y, 1, 0, self.web_post_br(),
+                self.lastcol, y - 1, 1, 0, self.web_post_tr()
             ))
 
         shape = shape.union(self.key_wall_brace(
-            self.lastcol,
-            self.cornerrow,
-            0,
-            -1,
-            self.web_post_br(),
-            self.lastcol,
-            self.cornerrow,
-            1,
-            0,
-            self.web_post_br(),
+            self.lastcol, self.cornerrow, 0, -1, self.web_post_br(),
+            self.lastcol, self.cornerrow, 1, 0, self.web_post_br(),
         ))
         return shape
 
@@ -1439,38 +1715,20 @@ class Dact:
         self.print_fu('left_wall()')
         shape = cq.Workplane('XY')
         shape = shape.union(self.wall_brace(
-            (lambda sh: self.key_place(sh, 0, 0)),
-            0,
-            1,
-            self.web_post_tl(),
-            (lambda sh: self.left_key_place(sh, 0, 1)),
-            0,
-            1,
-            self.web_post(),
+            (lambda sh: self.key_place(sh, 0, 0)), 0, 1, self.web_post_tl(),
+            (lambda sh: self.left_key_place(sh, 0, 1)), 0, 1, self.web_post(),
         ))
 
         shape = shape.union(self.wall_brace(
-            (lambda sh: self.left_key_place(sh, 0, 1)),
-            0,
-            1,
-            self.web_post(),
-            (lambda sh: self.left_key_place(sh, 0, 1)),
-            -1,
-            0,
-            self.web_post(),
+            (lambda sh: self.left_key_place(sh, 0, 1)), 0, 1, self.web_post(),
+            (lambda sh: self.left_key_place(sh, 0, 1)), -1, 0, self.web_post(),
         ))
 
         for i in range(self.lastrow):
             y = i
             temp_shape1 = self.wall_brace(
-                (lambda sh: self.left_key_place(sh, y, 1)),
-                -1,
-                0,
-                self.web_post(),
-                (lambda sh: self.left_key_place(sh, y, -1)),
-                -1,
-                0,
-                self.web_post(),
+                (lambda sh: self.left_key_place(sh, y, 1)), -1, 0, self.web_post(),
+                (lambda sh: self.left_key_place(sh, y, -1)), -1, 0, self.web_post(),
             )
             temp_shape2 = self.hull_from_shapes((
                 self.key_place(self.web_post_tl(), 0, y),
@@ -1484,14 +1742,8 @@ class Dact:
         for i in range(self.lastrow - 1):
             y = i + 1
             temp_shape1 = self.wall_brace(
-                (lambda sh: self.left_key_place(sh, y - 1, -1)),
-                -1,
-                0,
-                self.web_post(),
-                (lambda sh: self.left_key_place(sh, y, 1)),
-                -1,
-                0,
-                self.web_post(),
+                (lambda sh: self.left_key_place(sh, y - 1, -1)), -1, 0, self.web_post(),
+                (lambda sh: self.left_key_place(sh, y, 1)), -1, 0, self.web_post(),
             )
             temp_shape2 = self.hull_from_shapes((
                 self.key_place(self.web_post_tl(), 0, y),
@@ -1507,42 +1759,56 @@ class Dact:
     # The code below determines how the front wall is made (wall with thumb switches)
     def front_wall(self):
         self.print_fu('front_wall()')
-        shape = cq.Workplane('XY') 
+        shape = cq.Workplane('XY')
+        thickness = self.config.wall_thickness
+        if self.config.last_row_count == "zero":
+            front_wall_row = self.cornerrow
+            thumb_tr_post = self.thumb_post_br()
+        elif self.config.last_row_count == "full":
+            front_wall_row = self.lastrow
+            thumb_tr_post = self.thumb_post_br()
+        # TODO: implement self.config.last_row_count == "two" ??
 
-        shape = shape.union(
-            self.key_wall_brace(
-                #self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
-                self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
-            )
-        )
+        # shape = shape.union(
+        #     self.key_wall_brace(
+        #         #self.lastcol, 0, 0, 1, self.web_post_tl(), self.lastcol, 0, 1, 0, self.web_post_tl()
+        #         self.lastcol, 0, 0, 1, self.web_post_tr(), self.lastcol, 0, 1, 0, self.web_post_tr()
+        #     )
+        # )
 
         # TODO thumb-tr-post (if (= (get c :configuration-thumb-count) :five ) web-post-br thumb-post-br)]
         # ;The code below determines how the front wall is made (wall with thumb switches)
-        # thumb_tr_post = self.thumb_post_br()
-        # shape = shape.union(self.wall_brace(
-        #     self.thumb_tr_place, 0, -1, thumb_tr_post,
-        #     self.key_place(0 , 3, self.lastrow),    0, -1, self.web_post_br(),
-        # ))
-        ##
+
+        # this generates the front wall next to the thumb keys (column 3)
+        shape = shape.union(self.wall_brace(
+            self.thumb_tr_place, 0, -1, thumb_tr_post,
+            (lambda sh: self.key_place(sh, 3, front_wall_row)), 0, -1, self.web_post_bl()
+        ))
+        #
 
         # Wall along 4th column and along 4 - 5 column connector
         shape = shape.union(self.key_wall_brace(
-            3, self.lastrow, 0, -1, self.web_post_bl(), 3, self.lastrow, 0.5, -1, self.web_post_br()
+            3, front_wall_row, 0, -1, self.web_post_bl(),
+            3, front_wall_row, 0.5, -1, self.web_post_br()
         ))
         shape = shape.union(self.key_wall_brace(
-            3, self.lastrow, 0.5, -1, self.web_post_br(), 4, self.cornerrow, 1, -1, self.web_post_bl()
+            3, front_wall_row, 0.5, -1, self.web_post_br(),
+            4, front_wall_row, 0, -1, self.web_post_bl() # 1, -1
         ))
+        # The below for-loops ar for the last few columns (last 3 columns in case of 7 columns)
         for i in range(self.config.ncols - 4):
             x = i + 4
             shape = shape.union(self.key_wall_brace(
-                x, self.cornerrow, 0, -1, self.web_post_bl(), x, self.cornerrow, 0, -1, self.web_post_br()
+                x, front_wall_row, 0, -1, self.web_post_bl(),
+                x, front_wall_row, 0, -1, self.web_post_br()
             ))
         for i in range(self.config.ncols - 5):
             x = i + 5
             shape = shape.union(self.key_wall_brace(
-                x, self.cornerrow, 0, -1, self.web_post_bl(), x - 1, self.cornerrow, 0, -1, self.web_post_br()
+                x, front_wall_row, 0, -1, self.web_post_bl(),
+                x - 1, front_wall_row, 0, -1, self.web_post_br()
             ))
-
+        
         return shape
 
     # creates the front facing part of the front wall of thumb cluster
@@ -1551,7 +1817,9 @@ class Dact:
         self.print_fu('thumb_walls()')
         # thumb, walls
         shape = cq.Workplane('XY')
+        thickness = self.config.wall_thickness
         thumb_count = self.config.thumb_count
+
         wall_brace = self.wall_brace
 
         # Comments below are from the perspective of the right keyboard
@@ -1629,12 +1897,22 @@ class Dact:
         #     ]
         # ))
 
+        use_inner_column = self.config.use_inner_column
         # body-gap-two
         # TODO: add use_inner_column and thumbcount functionality from clojure script
         shape = shape.union(self.bottom_hull(
             [
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
                 self.thumb_tl_place(self.translate(self.thumb_post_tl(), self.wall_locate2(-1, 0))),
                 self.thumb_tl_place(self.translate(self.thumb_post_tl(), self.wall_locate3(-1, 0))),
+            ]
+        ))
+
+        shape = shape.union(self.hull_from_shapes(
+            [
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
             ]
         ))
 
@@ -1647,13 +1925,59 @@ class Dact:
 
         shape = shape.union(self.hull_from_shapes(
             [
-                self.thumb_ml_place(self.web_post_tr()), # TODO: check renaming issue tr etc
-                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate1(-0.4, 1))), #was tr
-                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate2(-0.4, 1))), #was tr
-                self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate3(-0.4, 1))), #was tr
                 self.thumb_tl_place(self.thumb_post_tl()),
             ]
         ))
+
+        shape = shape.union(self.hull_from_shapes(
+            [
+                self.left_key_place(self.web_post(), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate2(-1, 0)), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate3(-1, 0)), self.cornerrow, -1),
+                self.thumb_tl_place(self.thumb_post_tl()),
+            ]
+        ))
+
+        shape = shape.union(self.hull_from_shapes(
+            [
+                self.left_key_place(self.web_post(), self.cornerrow, -1),
+                self.left_key_place(self.translate(self.web_post(), self.wall_locate1(-1, 0)), self.cornerrow, -1),
+                self.key_place(self.web_post_bl(), 0, self.cornerrow),
+                self.key_place(self.translate(self.web_post_bl(), self.wall_locate1(-1, 0)), 0, self.cornerrow),
+                self.thumb_tl_place(self.thumb_post_tl()),
+            ]
+        ))
+        places = []
+        if self.config.last_row_count == "zero":
+            cornerrow = self.cornerrow
+        else:
+            cornerrow = self.lastrow
+
+        z_plate = self.config.plate_thickness / 2
+        z_thumb_plate = self.config.wall_thickness - self.config.plate_thickness
+        #z_key_bot = self.config.wall_thickness - self.config.plate_thickness
+        # Triangle next to thumb keys
+        places.append(self.get_thumb_point("tr_thumb", "tr", z_sh = -z_thumb_plate))
+        places.append(self.get_thumb_point("tr_thumb", "br", z_sh = -z_thumb_plate))
+        places.append(self.get_key_point(3, cornerrow, "bl"))
+        places.append(self.get_key_point(3, cornerrow, "bl", z_sh=  z_plate))
+        places.append(self.get_thumb_point("tr_thumb", "tr", z_sh = self.config.plate_thickness))
+        places.append(self.get_thumb_point("tr_thumb", "br", z_sh = self.config.plate_thickness))
+
+        shape = shape.union(self.hull_from_points(places))
+        places = []
+        # # TODO: thumb count default?
+        # shape = shape.union(self.hull_from_shapes(
+        #     [
+        #         self.thumb_ml_place(self.web_post_tr()),
+        #         self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate1(-0.4, 1))), #was tr
+        #         self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate2(-0.4, 1))), #was tr
+        #         self.thumb_ml_place(self.translate(self.web_post_tr(), self.wall_locate3(-0.4, 1))), #was tr
+        #         self.thumb_tl_place(self.thumb_post_tl()),
+        #     ]
+        # ))
+
         # shape = shape.union(
         #     self.hull_from_shapes(
         #         [
@@ -1708,8 +2032,10 @@ class Dact:
                 self.left_wall(),
                 self.right_wall(),
                 self.front_wall(),
+                # pinky wall
+                # pinky connectors
                 self.thumb_walls(),
-                self.thumb_connection(),
+                self.thumb_connection(), #in clojure script: (second-thumb-to-body c)  ; thumb cluster front inner/corner wall (near b button)
             ])
         )
 
@@ -1928,21 +2254,21 @@ class Dact:
         self.print_fu("model_right()")
         # Generate the square little frames that the key switches fit into.
         shape = cq.Workplane('XY').union(self.key_holes())
-
+        #shape = self.key_holes()
         #self.print_model(shape, "key_holes")
 
         # Connect the key switch frames together with extra material
         # This generates the top surface of the keyboard.
 
-        #shape = shape.union(self.connectors())
+        shape = shape.union(self.connectors())
         #self.print_model(shape, "key_hole_connectors")
 
         ## Generate the thumb switch frames
-        #shape = shape.union(self.thumb())
+        shape = shape.union(self.thumb())
         #self.print_model(shape, "thumb_switches")
         ## Generate the material between the thumb switch frames and the top surface
-        #shape = shape.union(self.thumb_connectors())
-        #self.print_model(shape, "thumb_conn")
+        shape = shape.union(self.thumb_connectors())
+        self.print_model(shape, "thumb_conn")
 
         # Generate the vertical outer walls.
         s2 = cq.Workplane('XY').union(self.case_walls())
@@ -2026,3 +2352,6 @@ class Dact:
         shape = shape.intersect(plane)
 
         return shape
+
+
+
