@@ -16,10 +16,11 @@ def main():
 	# comments below are from the perspective of the right keyboard
 	# The code below creates a conf_right_keyboard data-object that holds keyboard customization parameters.
 	conf_right_keyboard = Dact.Config(show_caps   = False,
+									  use_wide_pinky = True,
 									  script_print_shapes = True,  # prints intermediate shapes (to see how script builds up 3D model)
 									  script_verbose_func = False, # prints debug info (function names)
 									  nrows      = 6,
-									  ncols      = 7,  # row 3 from top, 3 from bottom should have 8 cols on right
+									  ncols      = 8,  # row 3 from top, 3 from bottom should have 8 cols on right
 									  thumb_count = 2, # number of thumb keys on thumb "isle"
 									  #extra_width   =  2.5,   # extra space between key rows (extra vertical space only). Can't be lower than 2
 									  #extra_height  =  1,   # extra space between key columns (extra horizontal space). Can't be lower than 1
@@ -47,22 +48,15 @@ def main():
 	# Note: this is the programmatic object. Not the 3D model object yet.
 	dact_right = Dact(conf_right_keyboard)
 
-	# # Generate the 3D model
-	mod_r = dact_right.model_right()
-	#
-	# # Store the 3D model on disk
-	# filename_right = path.join("things", r"right_og_py.step")
-	# cq.exporters.export(w=mod_r, fname=filename_right, exportType='STEP')
-	#
-	# # Print file name location of 3D model(s)
-	# print(os.open(filename_right, os.O_RDONLY))
-
-
+	# # Generate the 3D model in memory
+	#mod_r = dact_right.model_right_old()
+	# store on disk:
+	#print_model(mod_r)
+	## Generate 3D model for debugging purposes (without keycaps to save speed):
+	mod_r = dact_right.model_right_debug()
 
 	#dct_right_no_bottom = dactylutils.Dact().Config(show_caps = False)
 	#dct_left_no_bottom = dactylutils.Dact()
-
-
 
 	#base = baseplate(model_right())
 	#show_object(base)
@@ -71,5 +65,13 @@ def main():
 
 	#cq.exporters.export(w=base, fname=path.join(r"..", "things", r"plate_og_py.step"), exportType='STEP')
 	#cq.exporters.export(w=base, fname=path.join(r"..", "things", r"plate_og_py.dxf"), exportType='DXF')
+
+def print_model(model):
+	# # Store the 3D model on disk
+	filename_right = path.join("things", r"right_og_py.step")
+	cq.exporters.export(w=model, fname=filename_right, exportType='STEP')
+
+	# Print file name location of 3D model(s)
+	print(os.open(filename_right, os.O_RDONLY))
 
 main()

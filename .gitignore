@@ -1,6 +1,6 @@
 .idea/
 
-# Created by https://www.gitignore.io/api/macos,linux,django,python,pycharm
+
 
 ### Django ###
 *.log
@@ -212,10 +212,23 @@ ENV/
 /site
 
 # dactyl stuff (mechanical)
-cadquery/
-things/
+/cadquery/
+/things/
+/dist/
+clojure/
+renders/
+pyinst.build/
+pyinst.dist/
+__pycache__
+.idea/
 *.svg
 *.stp
 *.step
+*.rar
+*.exe
+*.stignore
 
-# End of https://www.gitignore.io/api/macos,linux,django,python,pycharm
+"PyCharm javabind fixer.bat"
+PyCharm javabind fixer.bat
+
+nuitka build string.txt
