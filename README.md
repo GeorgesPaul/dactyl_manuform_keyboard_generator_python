@@ -5,7 +5,29 @@ This code should be slightly more organized and easier to use. In progress
 
 # Status
 
+Both halves with the default configuration (6 rows, 8 columns), rendered live in the GUI:
+
 ![](renders/state.png)
+
+# Examples
+
+All of these were configured with the sliders in the live GUI and rendered there.
+
+Pinky column width set per row, tapering from 34 mm at the back to 19 mm at the front:
+
+![](renders/tapered_pinky.png)
+
+Halves configured independently, each with its own sliders (left: 5 rows x 6 columns with 30 degree tenting, right: 6 rows x 8 columns):
+
+![](renders/independent_halves.png)
+
+Compact variant (4 rows, 5 columns, 25 degree tenting):
+
+![](renders/compact.png)
+
+The case seen from the back: the walls have a single uniform thickness, follow the plate edges, and wrap around the thumb cluster:
+
+![](renders/walls_back.png)
 
 # How to use
 
