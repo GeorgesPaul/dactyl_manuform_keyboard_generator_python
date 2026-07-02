@@ -29,6 +29,10 @@ The case seen from the back: the walls have a single uniform thickness, follow t
 
 ![](renders/walls_back.png)
 
+The underside (keycaps hidden): the case is a hollow shell of key plates and walls, with the switch holes visible from inside:
+
+![](renders/underside.png)
+
 # How to use
 
 Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/). Dependencies are managed through `pyproject.toml` / `uv.lock`, so there is nothing to install manually; uv creates the virtual environment, fetches the pinned Python version and all packages on first run.
