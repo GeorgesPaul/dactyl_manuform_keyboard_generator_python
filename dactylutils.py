@@ -10,11 +10,6 @@ from scipy.spatial import ConvexHull as sphull
 import traceback
 import sys
 from typing import *
-#import pyclipper # for polygon offsetting (wall functions)
-import shapely # for polygon offsetting (wall functions)
-from shapely.geometry.polygon import LinearRing # for polygon offsetting (wall functions)
-from shapely.geometry import CAP_STYLE, JOIN_STYLE # for polygon offsetting (wall functions)
-import numba
 from array import array
 from pyquaternion import Quaternion
 import timeit
@@ -71,7 +66,7 @@ class Dact(object):
             # (def thumb-offsets [10 -3 -3])
             thumb_offsets : List[float] = field(default_factory=lambda:  [6, -3, 7])
 
-        thumb_keys : ThumbKeys = ThumbKeys()
+        thumb_keys : ThumbKeys = field(default_factory=lambda: Dact.Config.ThumbKeys())
         # ######################
         # ## Shape parameters ##
         # ######################
@@ -2547,61 +2542,27 @@ class Dact(object):
         return edges
 
     def offset_3D_polygon(self, offset: float, polygon: cq.Wire):
+        # Offsets every vertex along the mitre (angle bisector) of its two adjacent
+        # edges in the XY plane, keeping the original z of each vertex.
+        # The vertex count must stay identical across offset distances: OCCT's
+        # ruled loft (makeLoft) fails on wires with mismatched vertex counts, and a
+        # 1:1 point mapping is what keeps each offset point paired with the right z.
+        pts = np.array([v.toTuple() for v in polygon.Vertices()])
+        xy = pts[:, :2]
 
-        polygon_pts = []
-        out_pts = []
-        polygon_pts_tuples = []
-        l = len(polygon.Vertices())
-        direction = 'left'
-        # if (offset > 0.0):
-        #     direction = 'left'
-        # else:
-        #     direction = 'right'
-        #     offset = offset * -1
+        # unit normals pointing to the left of each directed edge
+        def left_normals(edges):
+            d = edges / np.linalg.norm(edges, axis=1, keepdims=True)
+            return np.column_stack((-d[:, 1], d[:, 0]))
 
-        # convert input polygon to list of points in format [x, y, z]
-        for i in range(0, l):
-            polygon_pts_tuples.append(polygon.Vertices()[i].toTuple())
-            polygon_pts.append(list(polygon.Vertices()[i].toTuple()))
+        n_prev = left_normals(xy - np.roll(xy, 1, axis=0))   # edge arriving at each vertex
+        n_next = left_normals(np.roll(xy, -1, axis=0) - xy)  # edge leaving each vertex
+        # mitre displacement: offset * (n1 + n2) / (1 + n1.n2)
+        denom = 1.0 + np.sum(n_prev * n_next, axis=1, keepdims=True)
+        out_xy = xy + offset * (n_prev + n_next) / denom
 
-        polygon_pts.append(polygon_pts[0])
-        l = len(polygon_pts)
-
-        # Create shapely linearring object representing the original polygon
-        shapely_ringpoly = LinearRing(polygon_pts_tuples)
-        # Get a list of 2D points representing the offset polygon
-        offset_xy_pts = list(shapely_ringpoly.parallel_offset(distance = offset, side = direction, join_style = JOIN_STYLE.mitre).coords)
-
-        # add the z element back to the offset 3D polygon to create a new x,y,z points list
-        l_offset = len(offset_xy_pts) # check the number of vertices in the offset polygon. Can be more or less than original polygon
-        print("lengths " + str(l) + " " + str(l_offset))
-        if True:
-            for i in range(0, l_offset):
-                if (i > l):
-                    out_pts.append([offset_xy_pts[i][0], offset_xy_pts[i][1],polygon_pts[0][2]])  # TODO: wrong. appends z of element 0 instead of nearest element
-                else:
-                    out_pts.append([offset_xy_pts[i][0], offset_xy_pts[i][1], polygon_pts[i][2]])
-
-                #print offset 3D
-                #print(str(offset_xy_pts[i][0]) + " " + str(offset_xy_pts[i][1]) + " " + str(polygon_pts[i][2]))
-                #print offset 2D
-                #print(str(offset_xy_pts[i][0]) + " " + str(offset_xy_pts[i][1]))
-        else:
-            print("Error: offset polygon has more points than source polygon.")
-
-        #out_pts.append([offset_xy_pts[0][0], offset_xy_pts[0][1], temp_pts[0][2]]) # append the first xyz point to close the polygon
-
-        for i in range(0,l):
-            # print original 3D polygon points
-            print(str(polygon_pts[i][0]) + " " + str(polygon_pts[i][1]) + " " + str(polygon_pts[i][2]))
-
-        print("Lenght in out: " + str(len(polygon_pts)), str(len(out_pts)))
-        print(str(offset_xy_pts[0][0]) + " " + str(offset_xy_pts[0][1]))
-        print(str(out_pts))
-        temp_cq_vectors = self.pts_to_vectors(out_pts)
-        polygon_out = cq.Wire.makePolygon([*temp_cq_vectors]).close()
-
-        return polygon_out
+        out_pts = np.column_stack((out_xy, pts[:, 2]))
+        return cq.Wire.makePolygon(self.pts_to_vectors(out_pts.tolist())).close()
 
     def walls_test(self):
 

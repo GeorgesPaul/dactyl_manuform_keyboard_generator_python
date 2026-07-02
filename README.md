@@ -9,10 +9,13 @@ This code should be slightly more organized and easier to use. In progress
 
 # How to use
 
-Tested with Python 3.8 and 3.9
+Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/). Dependencies are managed through `pyproject.toml` / `uv.lock`, so there is nothing to install manually:
 
-Install the necesary packages. 
-Run Python dactcreate.py This will generate a bunch of step files in /Things
+```
+uv run dactcreate.py
+```
+
+uv creates the virtual environment, fetches the pinned Python version and all packages on first run. This will generate a bunch of step files in /things
 
 Modify dactcreate.py to your liking to get to the exact keyboard STEP file that you want. 
 

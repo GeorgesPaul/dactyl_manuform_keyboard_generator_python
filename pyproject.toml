@@ -1,0 +1,10 @@
+[project]
+name = "dactyl-python"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "cadquery>=2.7.0",
+    "numpy>=2.2.6",
+    "pyquaternion>=0.9.9",
+    "scipy>=1.15.3",
+]
