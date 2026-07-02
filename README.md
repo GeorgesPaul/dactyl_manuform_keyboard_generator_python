@@ -71,4 +71,8 @@ There are two geometry pipelines that share the same layout math (the point func
 - `dactylmesh.py` builds triangle meshes with [manifold3d](https://github.com/elalish/manifold). Mesh booleans and convex hulls take milliseconds, which is what makes the live GUI possible. Also used for STL export.
 - `dactylutils.py` builds B-rep solids with [CadQuery](https://github.com/CadQuery/cadquery) / OCCT. Slower, but produces proper CAD data (STEP) for further work in CAD programs.
 
-GNU AFFERO GENERAL PUBLIC LICENSE Version 3, 19 November 2007
+# License
+
+Copyright (C) 2015-2026 Matthew Adereth, Tom Short, Joshua Shreve, and Georges Paul.
+
+The source code is distributed under the GNU Affero General Public License Version 3 (see [LICENSE](LICENSE)), inherited from the dactyl-keyboard projects this is derived from.
