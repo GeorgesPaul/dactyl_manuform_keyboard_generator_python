@@ -28,6 +28,7 @@ params = {
     "plate_thickness": 0.95, "web_thickness": 3.0,
     "keycap_space": 19.0, "switch_plate_wall_thickness": 2.0,
     "use_wide_pinky": True, "show_caps": True, "show_walls": True,
+    "show_left": True, "half_gap": 30.0,
     "tr_rot": [-15.0, 35.0, 10.0], "tr_loc": [-15.0, -16.0, -1.0],
     "tl_rot": [-15.0, 50.0, 10.0], "tl_loc": [-35.0, -15.0, 10.0],
 }
@@ -35,6 +36,8 @@ params = {
 last_build_ms = 0.0
 mesh_names = []
 status_line = ""
+scene_lo = np.zeros(3)
+scene_hi = np.ones(3)
 
 MESH_COLORS = {
     "body": (0.75, 0.75, 0.78),
@@ -77,20 +80,44 @@ def make_config():
 
 
 def rebuild():
-    global last_build_ms, mesh_names
+    global last_build_ms, mesh_names, scene_lo, scene_hi
     t0 = time.perf_counter()
     dact = Dact(make_config())
     meshes = dactylmesh.build_keyboard(
         dact, show_caps=params["show_caps"], show_walls=params["show_walls"]
     )
-    for name in mesh_names:
-        if name not in meshes and ps.has_surface_mesh(name):
-            ps.remove_surface_mesh(name)
+
+    # The pipeline builds the right half. The left half is its mirror image
+    # across a YZ plane placed just left of the right half, leaving half_gap
+    # millimeters between the two halves.
+    min_x = min(v[:, 0].min() for v, t in meshes.values())
+    mirror_x = min_x - params["half_gap"] / 2.0
+
+    new_names = []
     for name, (verts, tris) in meshes.items():
-        ps.register_surface_mesh(
-            name, verts, tris, smooth_shade=False, color=MESH_COLORS.get(name)
-        )
-    mesh_names = list(meshes.keys())
+        color = MESH_COLORS.get(name)
+        ps.register_surface_mesh(name + " right", verts, tris, smooth_shade=False, color=color)
+        new_names.append(name + " right")
+        if params["show_left"]:
+            left_verts = verts.copy()
+            left_verts[:, 0] = 2.0 * mirror_x - verts[:, 0]
+            # mirroring inverts the face orientation, so flip the winding back
+            left_tris = np.ascontiguousarray(tris[:, ::-1])
+            ps.register_surface_mesh(name + " left", left_verts, left_tris, smooth_shade=False, color=color)
+            new_names.append(name + " left")
+
+    for name in mesh_names:
+        if name not in new_names and ps.has_surface_mesh(name):
+            ps.remove_surface_mesh(name)
+    mesh_names = new_names
+
+    # scene bounds, used to aim the camera
+    lo = np.min([v.min(axis=0) for v, t in meshes.values()], axis=0)
+    hi = np.max([v.max(axis=0) for v, t in meshes.values()], axis=0)
+    if params["show_left"]:
+        lo[0] = 2.0 * mirror_x - hi[0]
+    scene_lo, scene_hi = lo, hi
+
     last_build_ms = (time.perf_counter() - t0) * 1000
 
 
@@ -153,6 +180,7 @@ def ui():
         ("Plate thickness (mm)", "plate_thickness", 0.6, 3.0),
         ("Web thickness (mm)", "web_thickness", 2.0, 6.0),
         ("Keycap space (mm)", "keycap_space", 17.0, 22.0),
+        ("Gap between halves (mm)", "half_gap", 0.0, 200.0),
     ):
         changed, params[key] = psim.SliderFloat(label, params[key], mn, mx)
         changed_any = changed_any or changed
@@ -161,6 +189,7 @@ def ui():
         ("Wide pinky keys", "use_wide_pinky"),
         ("Show keycaps", "show_caps"),
         ("Show walls", "show_walls"),
+        ("Show left half", "show_left"),
     ):
         changed, params[key] = psim.Checkbox(label, params[key])
         changed_any = changed_any or changed
@@ -185,13 +214,38 @@ def ui():
         rebuild()
 
 
+def frame_scene():
+    # aim the camera at the scene from the front and above, far enough back
+    # to fit both halves
+    center = (scene_lo + scene_hi) / 2.0
+    extent = float(np.max(scene_hi - scene_lo))
+    dist = 1.2 * extent
+    ps.look_at(
+        (center[0], center[1] - dist, center[2] + 0.9 * dist),
+        tuple(center),
+    )
+
+
+def screen_size():
+    # polyscope has no fullscreen switch, so size the window to the screen
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        user32.SetProcessDPIAware()
+        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    except Exception:  # not on Windows
+        return 1920, 1080
+
+
 def main():
     ps.set_program_name("Dactyl generator")
+    width, height = screen_size()
+    ps.set_window_size(width, height)
     ps.init()
     ps.set_up_dir("z_up")
     ps.set_ground_plane_mode("shadow_only")
     rebuild()
-    ps.look_at((20.0, -200.0, 220.0), (20.0, 10.0, 20.0))
+    frame_scene()
     ps.set_user_callback(ui)
 
     if "--screenshot" in sys.argv:
