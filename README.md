@@ -9,6 +9,10 @@ Both halves with the default configuration (6 rows, 8 columns), rendered live in
 
 ![](renders/state.png)
 
+A 3D printed and assembled prototype generated with this tool:
+
+![](renders/printed_prototype.webp)
+
 # Examples
 
 All of these were configured with the sliders in the live GUI and rendered there.
