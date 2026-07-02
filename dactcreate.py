@@ -17,7 +17,7 @@ def main():
 	# The code below creates a conf_right_keyboard data-object that holds keyboard customization parameters.
 	conf_right_keyboard = Dact.Config(show_caps   = False,
 									  use_wide_pinky = True,
-									  script_print_shapes = True,  # prints intermediate shapes (to see how script builds up 3D model)
+									  script_print_shapes = False, # exports intermediate shapes as STEP (slow, only for debugging model build-up)
 									  script_verbose_func = False, # prints debug info (function names)
 									  nrows      = 6,
 									  ncols      = 8,  # row 3 from top, 3 from bottom should have 8 cols on right
@@ -54,6 +54,8 @@ def main():
 	#print_model(mod_r)
 	## Generate 3D model for debugging purposes (without keycaps to save speed):
 	mod_r = dact_right.model_right_debug()
+	# store on disk:
+	print_model(mod_r)
 
 	#dct_right_no_bottom = dactylutils.Dact().Config(show_caps = False)
 	#dct_left_no_bottom = dactylutils.Dact()
@@ -72,6 +74,6 @@ def print_model(model):
 	cq.exporters.export(w=model, fname=filename_right, exportType='STEP')
 
 	# Print file name location of 3D model(s)
-	print(os.open(filename_right, os.O_RDONLY))
+	print("Wrote " + filename_right)
 
 main()

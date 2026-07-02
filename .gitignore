@@ -210,6 +210,10 @@ ENV/
 # mkdocs documentation
 /site
 
+# polyscope / imgui window state written by the GUI
+.polyscope.ini
+imgui.ini
+
 # dactyl stuff (mechanical)
 /cadquery/
 /things/

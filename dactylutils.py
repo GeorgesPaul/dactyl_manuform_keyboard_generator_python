@@ -1,6 +1,15 @@
 import cadquery as cq
 #from cadquery.cadquery import cq
 from dataclasses import dataclass, field
+from functools import cached_property
+
+# The OCP wheels ship OCCT with TBB support: this makes boolean operations
+# (union/cut/intersect) use all CPU cores instead of one.
+try:
+    from OCP.BOPAlgo import BOPAlgo_Options
+    BOPAlgo_Options.SetParallelMode_s(True)
+except Exception:
+    pass
 import numpy as np
 import os
 import os.path as path
@@ -11,7 +20,6 @@ import traceback
 import sys
 from typing import *
 from array import array
-from pyquaternion import Quaternion
 import timeit
 
 #temp import for testing different code speeds:
@@ -36,6 +44,24 @@ class CalcUtils:
     @staticmethod
     def rad2deg(rad: float) -> float:
         return rad * 180 / pi
+
+    # Point rotations about the global axes (angles in radians). Plain numpy
+    # replacements for the pyquaternion calls that used to live in the point
+    # functions; those were pure Python and dominated point generation time.
+    @staticmethod
+    def rotate_x(v, angle):
+        c, s = np.cos(angle), np.sin(angle)
+        return np.array([v[0], c * v[1] - s * v[2], s * v[1] + c * v[2]])
+
+    @staticmethod
+    def rotate_y(v, angle):
+        c, s = np.cos(angle), np.sin(angle)
+        return np.array([c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]])
+
+    @staticmethod
+    def rotate_z(v, angle):
+        c, s = np.cos(angle), np.sin(angle)
+        return np.array([c * v[0] - s * v[1], s * v[0] + c * v[1], v[2]])
 
 class Dact(object):
 
@@ -258,17 +284,28 @@ class Dact(object):
         self.teensy_holder_offset = -self.teensy_holder_length / 2
         self.teensy_holder_top_offset = (self.config.teensy_holder_top_length / 2) - self.teensy_holder_length
 
-        # screw inserts:
-        self.screw_insert_holes = self.screw_insert_all_shapes(
+        # screw insert shapes are built lazily (see the cached properties below)
+        # so that constructing a Dact stays cheap: important for the live GUI,
+        # which creates a fresh Dact on every slider change.
+        self.thumb_origin = self.thumborigin()
+
+    @cached_property
+    def screw_insert_holes(self):
+        return self.screw_insert_all_shapes(
             self.config.screw_insert_bottom_radius, self.config.screw_insert_top_radius, self.config.screw_insert_height
         )
-        self.screw_insert_outers = self.screw_insert_all_shapes(
+
+    @cached_property
+    def screw_insert_outers(self):
+        return self.screw_insert_all_shapes(
             self.config.screw_insert_bottom_radius + 1.6,
             self.config.screw_insert_top_radius + 1.6,
             self.config.screw_insert_height + 1.5,
         )
-        self.screw_insert_screw_holes = self.screw_insert_all_shapes(1.7, 1.7, 350)
-        self.thumb_origin = self.thumborigin()
+
+    @cached_property
+    def screw_insert_screw_holes(self):
+        return self.screw_insert_all_shapes(1.7, 1.7, 350)
 
     def print_fu(self, *args):
         if self.config.script_verbose_func:
@@ -281,7 +318,7 @@ class Dact(object):
             filename = "debug_"+ str(self.script_shape_debug_counter) +" "+ s +".step"
             full_path = path.join("things", filename)
             cq.exporters.export(w=shape, fname=full_path, exportType='STEP')
-            print(os.open(full_path, os.O_RDONLY))
+            print("Wrote " + full_path)
 
     # Constructor to generate the keyboard for the left hand
     #@classmethod
@@ -313,13 +350,25 @@ class Dact(object):
 
     def union(self, shapes):
         self.print_fu('union()')
-        shape = None
+        # Collect the underlying solids and fuse them in one multi-argument
+        # OCCT operation. Folding pairwise re-fuses the accumulated shape on
+        # every iteration, which gets slower with each added solid. clean()
+        # is also skipped here; callers can clean the final result once.
+        solids = []
         for item in shapes:
-            if shape is None:
-                shape = item
-            else:
-                shape = shape.union(item)
-        return shape
+            if item is None:
+                continue
+            if isinstance(item, cq.Workplane):
+                solids.extend(o for o in item.objects if isinstance(o, cq.Shape))
+            elif isinstance(item, cq.Shape):
+                solids.append(item)
+        if not solids:
+            return cq.Workplane('XY')
+        if len(solids) == 1:
+            fused = solids[0]
+        else:
+            fused = solids[0].fuse(*solids[1:])
+        return cq.Workplane('XY').newObject([fused])
 
     def face_from_points(self, points):
         self.print_fu('face_from_points()')
@@ -591,18 +640,18 @@ class Dact(object):
         xyz = self.v_add(initial_xyz_offset, [0.0, 0.0, float(-self.row_radius)])
         angle = self.config.alpha * (self.config.centerrow - row)
         if angle != 0.0:
-            xyz = Quaternion(axis=axis_x, radians=angle).rotate(np.array(xyz))
+            xyz = CalcUtils.rotate_x(np.asarray(xyz, dtype=float), angle)
         xyz = self.v_add(xyz, [0.0, 0.0, self.row_radius])
         xyz = self.v_add(xyz, [0.0, 0.0, -self.column_radius])
         angle = column_angle
         if angle != 0.0:
-            xyz = Quaternion(axis=axis_y, radians=angle).rotate(xyz)
+            xyz = CalcUtils.rotate_y(np.asarray(xyz, dtype=float), angle)
         xyz = self.v_add(xyz, [x_sh, 0.0 + y_sh, self.column_radius + z_sh])
         xyz = self.v_add(xyz, self.column_offset(column))
         angle = self.config.tenting_angle
         #####
         if angle != 0.0:
-            xyz = Quaternion(axis=axis_y, radians=angle).rotate(xyz)
+            xyz = CalcUtils.rotate_y(np.asarray(xyz, dtype=float), angle)
         xyz = self.v_add(xyz, [0.0, 0.0, self.config.keyboard_z_offset])
 
         return xyz
@@ -706,9 +755,9 @@ class Dact(object):
             self.print_debug("Invalid thumb_key argument passed to get_key_point_array. Values have to be one of the following strings: tr, br, tl, bl")
             os.exit
 
-        xyz = Quaternion(axis=axis_x, degrees=angle[0]).rotate(np.array(xyz))
-        xyz = Quaternion(axis=axis_y, degrees=angle[1]).rotate(np.array(xyz))
-        xyz = Quaternion(axis=axis_z, degrees=angle[2]).rotate(np.array(xyz))
+        xyz = CalcUtils.rotate_x(np.asarray(xyz, dtype=float), CalcUtils.deg2rad(angle[0]))
+        xyz = CalcUtils.rotate_y(xyz, CalcUtils.deg2rad(angle[1]))
+        xyz = CalcUtils.rotate_z(xyz, CalcUtils.deg2rad(angle[2]))
 
         xyz = self.v_add(xyz, self.v_add(self.thumb_origin, loc))
 
@@ -751,30 +800,37 @@ class Dact(object):
         c = self.keyswitch_pinky_frame_width # extra wide pinky keys
         use_wide_pinky = self.config.use_wide_pinky
 
-        keyswitch_frame_widths = (a, a, a, a) # standard key switch plane frames are square and symmetrical
+        # There are only a few distinct plate variants; build each once and
+        # place transformed copies instead of rebuilding the plate per key.
+        plate_std   = self.single_plate((a, a, a, a))
+        plate_col2  = self.single_plate((a, b, a, b)) # wider sides on the 3rd column switch plate
+        plate_col3  = self.single_plate((a, b, a, a)) # wider right side on the 4th column switch plate
+        plate_pinky = self.single_plate((a, c, a, c)) if use_wide_pinky else None
+
         holes = []
         for column in range(self.config.ncols):
             for row in range(self.lastrow):
-                #if ((column in [2, 3]) and (not row == self.lastrow)):
                 if (column == 2):
-                    keyswitch_frame_widths = (a, b, a, b) # make the sides of the 3rd column switch plate wider
+                    plate = plate_col2
                 elif (column == 3):
-                    keyswitch_frame_widths = (a, b, a, a) # make right sie of the 4th column switch plate wider
+                    plate = plate_col3
                 elif (column == self.config.ncols -1) and (use_wide_pinky):
-                    keyswitch_frame_widths = (a, c, a, c)
+                    plate = plate_pinky
                 else:
-                    keyswitch_frame_widths = (a, a, a, a)
+                    plate = plate_std
 
-                holes.append(self.key_place(self.single_plate(keyswitch_frame_widths), column, row))
-                # Georges add different locations for holes here? or in key_place?
+                holes.append(self.key_place(plate, column, row))
 
         shape = self.union(holes)
 
         return shape
 
-    # builds the frames in which the switches will be placed
-    def key_frames(self):
-        self.print_fu('key_frames()')
+    # Computes for every key the 8 corner points of the switch frame and the
+    # 8 corner points of the switch hole, and fills self.key_pt as a side
+    # effect. Shared by the CadQuery pipeline (key_frames) and the mesh
+    # pipeline (dactylmesh), so both always generate the same geometry.
+    # Returns a list of (pts_frame, pts_hole) tuples.
+    def key_frame_point_sets(self):
         # hole = single_plate()
         a = self.keyswitch_frame_width  # normal square switch plate frame
         b = self.keyswitch_frame_width + self.config.switch_plate_wall_thickness  # wider rectangular switch plate frame (to accomodate walls on columns 1,2,3)
@@ -789,7 +845,7 @@ class Dact(object):
         x_sh_h_br = -a
         x_sh_h_bl = a
 
-        hulls = []
+        point_sets = []
         for column in range(self.config.ncols):
             for row in range(self.lastrow):
 
@@ -856,21 +912,28 @@ class Dact(object):
                 pts_hole.append(self.get_key_point(column, row, "tr", x_sh=  x_sh_h_tr, y_sh=  -a, z_sh=z_sh))
                 pts_hole.append(self.get_key_point(column, row, "tl", x_sh=  x_sh_h_tl, y_sh=  -a, z_sh=z_sh))
 
-                frame = self.hull_from_points(pts_frame)
-                hole = self.hull_from_points(pts_hole)
+                point_sets.append((pts_frame, pts_hole))
 
-                # TODO: experiment to create custom CadQuery workplane to extrude from there (faster?)
-                # cntr = self.get_key_point(column, row, "center")
-                # xdir = (pts_frame[0],  pts_frame[1])
-                # nr = [cntr, self.get_key_point(column, row, "center", z_sh = 1.0)]
-                # print(str(nr))
-                # gvd = cq.Plane(origin = cntr, xDir = xdir, normal = nr)
+        return point_sets
 
-                hulls.append(frame.cut(hole))
+    # builds the frames in which the switches will be placed
+    def key_frames(self):
+        self.print_fu('key_frames()')
+        frames = []
+        for pts_frame, pts_hole in self.key_frame_point_sets():
+            # The four top frame corners and the four top hole corners lie in
+            # the same (rotated) plane, so the frame can be built as a single
+            # extrusion of a face with a hole. That replaces two convex hulls
+            # plus a boolean cut per key with one cheap prism operation.
+            outer_wire = cq.Wire.makePolygon([cq.Vector(*p) for p in pts_frame[0:4]]).close()
+            inner_wire = cq.Wire.makePolygon([cq.Vector(*p) for p in pts_hole[0:4]]).close()
+            extrude_vec = cq.Vector(*(np.array(pts_frame[7]) - np.array(pts_frame[0])))
+            frames.append(cq.Solid.extrudeLinear(outer_wire, [inner_wire], extrude_vec))
 
-        shape = self.union(hulls)
-
-        return shape
+        # The frames never touch each other (the connectors fill the gaps), so
+        # no boolean is needed here: return them as separate solids and let the
+        # model level union fuse everything in a single operation.
+        return cq.Workplane('XY').newObject(frames)
 
     def caps(self):
         caps = None
@@ -881,16 +944,21 @@ class Dact(object):
         else:
             lastrow = self.config.nrows
 
+        # Build the two cap variants once and place transformed copies.
+        cap = self.sa_cap()
+        pinky_cap = self.sa_cap(pinky=True) if use_wide_pinky else None
+
         for column in range(self.config.ncols):
             for row in range(lastrow):
-                #if (column in [2, 3]) or (not row == self.lastrow):
-                if caps is None:
-                    caps = self.key_place(self.sa_cap(), column, row)
-                elif use_wide_pinky & (column == self.config.ncols -1):
-                    width_u = self.config.keycap_pinky_space / self.config.keycap_space
-                    caps = caps.add(self.key_place(self.sa_cap(pinky = True), column, row))
+                if use_wide_pinky and (column == self.config.ncols - 1):
+                    placed = self.key_place(pinky_cap, column, row)
                 else:
-                    caps = caps.add(self.key_place(self.sa_cap(), column, row))
+                    placed = self.key_place(cap, column, row)
+
+                if caps is None:
+                    caps = placed
+                else:
+                    caps = caps.add(placed)
 
         return caps
 
@@ -1085,10 +1153,12 @@ class Dact(object):
 
         return self.union(hulls)
 
-    # Iterates through all the columns and rows to connect key plate holes together (Georges)
-    def connectors(self):
-        self.print_fu('connectors()')
-        hulls = []
+    # Computes the corner points of every piece of material that connects the
+    # key plate holes together. Shared by the CadQuery pipeline (connectors)
+    # and the mesh pipeline (dactylmesh). Returns a list of point lists; each
+    # point list describes one convex piece.
+    def connector_point_sets(self):
+        point_sets = []
         thickness_mm = self.config.switch_plate_wall_thickness
         col_count = self.config.ncols - 1
         z_sh = self.config.plate_thickness * 0.9# shifts walls of columns 3 and 4 slightly up
@@ -1132,7 +1202,7 @@ class Dact(object):
                     places.append(self.get_key_point(col_low, row, "b" + side_l, x_sh = x_sh,       z_sh = z_sh))
                     places.append(self.get_key_point(col_low, row, "t" + side_l, x_sh = x_sh,       z_sh = z_sh))
                     places.append(self.get_key_point(col_low, row, "t" + side_l,                    z_sh = z_sh))
-                    hulls.append(self.hull_from_points(places))
+                    point_sets.append(places)
                     places = []
 
                 else:
@@ -1161,7 +1231,7 @@ class Dact(object):
                     places.append(self.get_key_point(column + 1, row, "bl"  , z_sh = z_sh))
                     places.append(self.get_key_point(column,     row, "br"  , z_sh = z_sh))
 
-                    hulls.append(self.hull_from_points(places))
+                    point_sets.append(places)
                     # starttime = timeit.default_timer()
                     # print("The time difference method 1 is :", timeit.default_timer() - starttime)
 
@@ -1202,10 +1272,9 @@ class Dact(object):
                 # places.append(self.get_key_point(column, row, "bl", x_sh=x_sh_l, z_sh=thickness))
                 # places.append(self.get_key_point(column, row + 1, "tl", x_sh=x_sh_l, z_sh=thickness))
 
-                hulls.append(self.hull_from_points(places))
+                point_sets.append(places)
 
                 places = []
-        #self.print_model(self.union(hulls), "connectors2nd")
 
         thickness_mm = self.config.web_thickness
         # This iteration fills up the empty squares between the corners of key hole frames
@@ -1244,7 +1313,7 @@ class Dact(object):
                     places.append(self.get_key_point(col_low , row+1, "t" + side_l, x_sh=x_sh, z_sh=z_sh))
                     places.append(self.get_key_point(col_low , row+1, "t" + side_l, z_sh=z_sh))
 
-                    hulls.append(self.hull_from_points(places))
+                    point_sets.append(places)
                     places = []
                 else:
                     places = []
@@ -1260,7 +1329,7 @@ class Dact(object):
                     places.append(self.get_key_point(column + 1, row,     "bl", z_sh=z_sh_thickness))
                     places.append(self.get_key_point(column + 1, row + 1, "tl", z_sh=z_sh_thickness))
 
-                    hulls.append(self.hull_from_points(places))
+                    point_sets.append(places)
                     places = []
 
                     # slow code: removed.
@@ -1272,9 +1341,12 @@ class Dact(object):
                     #if len(places):  # if arrray is not empty
                     #    hulls.append(self.triangle_hulls(places))
 
-        #self.print_model(self.union(hulls), "connectors3rd")
+        return point_sets
 
-        return self.union(hulls)
+    # Iterates through all the columns and rows to connect key plate holes together (Georges)
+    def connectors(self):
+        self.print_fu('connectors()')
+        return self.union([self.hull_from_points(places) for places in self.connector_point_sets()])
 
     ############
     ## Thumbs ##
@@ -2514,7 +2586,7 @@ class Dact(object):
         # cut the keyboard along the XY plane (the box is substracted from model)
         block = cq.Workplane("XY").box(500, 500, 40)
         block = block.translate((0, 0, -20))
-        shape = shape.cut(block)
+        shape = shape.cut(block, clean=False)
 
         if self.config.show_caps:
             shape = shape.add(self.thumbcaps())
@@ -2541,38 +2613,60 @@ class Dact(object):
 
         return edges
 
-    def offset_3D_polygon(self, offset: float, polygon: cq.Wire):
-        # Offsets every vertex along the mitre (angle bisector) of its two adjacent
-        # edges in the XY plane, keeping the original z of each vertex.
-        # The vertex count must stay identical across offset distances: OCCT's
-        # ruled loft (makeLoft) fails on wires with mismatched vertex counts, and a
-        # 1:1 point mapping is what keeps each offset point paired with the right z.
-        pts = np.array([v.toTuple() for v in polygon.Vertices()])
+    # Offsets every vertex of a closed 3D polygon along the mitre (angle
+    # bisector) of its two adjacent edges in the XY plane, keeping the original
+    # z of each vertex. The vertex count must stay identical across offset
+    # distances: OCCT's ruled loft (makeLoft) fails on wires with mismatched
+    # vertex counts, and a 1:1 point mapping is what keeps each offset point
+    # paired with the right z. Pure numpy so the mesh pipeline can use it too.
+    @staticmethod
+    def mitre_offset(pts, offset: float):
+        pts = np.asarray(pts, dtype=float)
         xy = pts[:, :2]
 
         # unit normals pointing to the left of each directed edge
         def left_normals(edges):
-            d = edges / np.linalg.norm(edges, axis=1, keepdims=True)
+            lengths = np.maximum(np.linalg.norm(edges, axis=1, keepdims=True), 1e-12)
+            d = edges / lengths
             return np.column_stack((-d[:, 1], d[:, 0]))
 
         n_prev = left_normals(xy - np.roll(xy, 1, axis=0))   # edge arriving at each vertex
         n_next = left_normals(np.roll(xy, -1, axis=0) - xy)  # edge leaving each vertex
         # mitre displacement: offset * (n1 + n2) / (1 + n1.n2)
-        denom = 1.0 + np.sum(n_prev * n_next, axis=1, keepdims=True)
-        out_xy = xy + offset * (n_prev + n_next) / denom
+        # Extreme configurations can fold the outline back on itself (a 180
+        # degree turn makes the denominator zero), so guard the division and
+        # clamp spikes at very sharp corners with a miter limit. Well formed
+        # outlines are not affected by either guard.
+        denom = np.maximum(1.0 + np.sum(n_prev * n_next, axis=1, keepdims=True), 1e-9)
+        disp = offset * (n_prev + n_next) / denom
+        limit = 4.0 * abs(offset)
+        disp_len = np.maximum(np.linalg.norm(disp, axis=1, keepdims=True), 1e-12)
+        disp = disp * np.minimum(1.0, limit / disp_len)
+        out_xy = xy + disp
 
-        out_pts = np.column_stack((out_xy, pts[:, 2]))
+        return np.column_stack((out_xy, pts[:, 2]))
+
+    def offset_3D_polygon(self, offset: float, polygon: cq.Wire):
+        pts = [v.toTuple() for v in polygon.Vertices()]
+        out_pts = self.mitre_offset(pts, offset)
         return cq.Wire.makePolygon(self.pts_to_vectors(out_pts.tolist())).close()
 
-    def walls_test(self):
+    # Ring definitions for the outer wall lofts as (xy_offset, z_shift) pairs
+    # applied to the wall outline polygon. The first loft forms the top lip of
+    # the wall, the second the outer skirt going down (everything below z=0 is
+    # cut off later). Shared by walls_test and the mesh pipeline (dactylmesh).
+    WALL_LOFT_1 = [(0.01, 0), (1.5, 3), (8, -5), (6, -5)]
+    WALL_LOFT_2 = [(6, -5), (8, -5), (50, -100), (12, -100)]
 
+    # Collects the outer boundary of the key plate area as an ordered, closed
+    # polygon (list of [x, y, z] points). Requires key_pt to be filled, so
+    # key_frames() / key_frame_point_sets() must have run first.
+    def wall_outline_points(self):
         pts_left= []
         pts_right= []
         pts_top= []
         pts_bot = []
-        shape = cq.Workplane('XY')
         tl, tr, br, bl = 0, 1, 2, 3
-        # outer = cq.Workplane('XY').polyline([tl, tr, br, bl, tl, i_tl, i_tr, i_br, i_bl, i_tl])
         for column in range(self.config.ncols):
             for row in range(self.lastrow):
                 if column == 0:
@@ -2588,41 +2682,18 @@ class Dact(object):
                     pts_bot.append(list(self.key_pt[column, row, bl, :]))
                     pts_bot.append(list(self.key_pt[column, row, br, :]))
 
-        #outer = cq.Wire.assembleEdges(listOfEdges = edges)
-        left    = self.pts_to_vectors(pts_left)[::-1] # reverse the list. Not sure why list.reverse() doesn't work.
-        top     = self.pts_to_vectors(pts_top)
-        right   = self.pts_to_vectors(pts_right)
-        bottom  = self.pts_to_vectors(pts_bot)[::-1]
+        return [*pts_left[::-1], *pts_top, *pts_right, *pts_bot[::-1]]
 
-        outer = cq.Wire.makePolygon([*left, *top, *right, *bottom]).close()
-
-        #kak = cq.Vertex.makeVertex(-67.3841164820318, -31.11266823040969, 50)     #((-67.3841164820318, -31.11266823040969, 50))
-        #outer.Vertices().insert(1, kak)
-        # outer.Vertices().append(kak)
-
-        outer_1 = self.offset_3D_polygon(6, outer).translate((0,0,-5))
-        outer_2 = self.offset_3D_polygon(8, outer).translate((0,0,-5))
-        outer_3 = self.offset_3D_polygon(50, outer).translate((0,0,-100)) #outer_2.translate((0,0,-100))
-        outer_down_in = self.offset_3D_polygon(12, outer).translate((0,0,-100))#outer_1.translate((0,0,-100))
-
-        outera = self.offset_3D_polygon(0.01, outer)
-        outerb = self.offset_3D_polygon(1.5, outer).translate((0,0,3))
-        outerc = outer_2
-        outerd = outer_1
-
-        #outer = cq.Wire.assembleEdges(listOfEdges = [edg_left, edg_top, edg_right, edg_bot])
-        outer1 = outer.translate((0, 0, 2)) #outer.translate((0, 0, 2)).scale(1.3)  # create a copy of outer. translated in Z direction)
-        outer2 = outer1.translate((0,0,-30)).scale(1.1) # create a copy of outer. translated in Z direction)
-        outer3 = outer2.translate((0,0,-60)) # create a copy of outer. translated in Z direction)
-        #outer4 = outer3.translate((0,0,-30)).scale(1.2) # create a copy of outer. translated in Z direction)
-        #shape = shape.add(cq.Solid.makeLoft(listOfWire= [outer, outerb, outerc, outerd, outer], ruled=True))
-        #shape = shape.add(cq.Solid.makeLoft(listOfWire=[outerd, outer], ruled=True))
-        shape = shape.add(cq.Solid.makeLoft(listOfWire=[outera, outerb, outerc, outerd, outera], ruled=True))
-        shape = shape.add(cq.Solid.makeLoft(listOfWire=[outer_1, outer_2, outer_3, outer_down_in, outer_1], ruled=True))
-
-        # shape = shape.add(
-        #      cq.Solid.extrudeLinear(outerWire=outer, innerWires=[], vecNormal=cq.Vector(0, 0, 0.1)))
-        #shape = shape.translate((0, 0, 50))
+    def walls_test(self):
+        outline = np.array(self.wall_outline_points())
+        shape = cq.Workplane('XY')
+        for spec in (self.WALL_LOFT_1, self.WALL_LOFT_2):
+            wires = []
+            for off, dz in spec:
+                ring = self.mitre_offset(outline, off) + np.array([0.0, 0.0, dz])
+                wires.append(cq.Wire.makePolygon(self.pts_to_vectors(ring.tolist())).close())
+            # repeating the first wire closes the loft into a solid ring
+            shape = shape.add(cq.Solid.makeLoft(listOfWire=[*wires, wires[0]], ruled=True))
 
         return shape
 
@@ -2631,30 +2702,17 @@ class Dact(object):
     def model_right_debug(self):
         self.print_fu("model_right()")
 
-        # Generate the square little frames that the key switches fit into.
-        # starttime = timeit.default_timer()
-        # shape = cq.Workplane('XY').union(self.key_holes())
-        # print("The time difference method 1 is :", timeit.default_timer() - starttime)
         starttime = timeit.default_timer()
-        #shape = shape.union(self.key_frames())
-        shape = cq.Workplane('XY').union(self.key_frames())
-        print("The time difference method 2 is :", timeit.default_timer() - starttime)
-
-        #shape = self.key_holes()
-        #self.print_model(shape, "key_holes")
-
-        # Connect the key switch frames together with extra material
-        # This generates the top surface of the keyboard.
-
-        shape = shape.union(self.connectors())
-        #self.print_model(shape, "key_hole_connectors")
-
-
-        ## Generate the thumb switch frames
-        shape = shape.union(self.thumb())
-        #self.print_model(shape, "thumb_switches")
-        ## Generate the material between the thumb switch frames and the top surface
-        shape = shape.union(self.thumb_connectors())
+        # Build all top-side components first, then fuse them in a single
+        # boolean operation instead of unioning one component at a time.
+        components = [
+            self.key_frames(),       # the square frames the key switches fit into
+            self.connectors(),       # material connecting the frames (top surface)
+            self.thumb(),            # thumb switch frames
+            self.thumb_connectors(), # material between thumb frames and top surface
+        ]
+        shape = self.union(components)
+        print("Top side built and fused in %.2f s" % (timeit.default_timer() - starttime))
         self.print_model(shape, "thumb_conn")
 
         # Generate the vertical outer walls.
@@ -2663,7 +2721,7 @@ class Dact(object):
         # TODO: remove the 3 lines below. Cutting should be done at the end.
         block = cq.Workplane("XY").box(500, 500, 100)
         block = block.translate((0, 0, -50))
-        s2 = s2.cut(block)
+        s2 = s2.cut(block, clean=False)
         self.print_model(s2, "walls")
         # Generate screw insert cilinders (without hole)
 
@@ -2707,7 +2765,7 @@ class Dact(object):
         # cut the keyboard along the XY plane (the box is substracted from model)
         block = cq.Workplane("XY").box(500, 500, 40)
         block = block.translate((0, 0, -20))
-        shape = shape.cut(block)
+        shape = shape.cut(block, clean=False)
 
         if self.config.show_caps:
             shape = shape.add(self.thumbcaps())

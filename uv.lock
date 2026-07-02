@@ -258,16 +258,18 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cadquery" },
+    { name = "manifold3d" },
     { name = "numpy" },
-    { name = "pyquaternion" },
+    { name = "polyscope" },
     { name = "scipy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cadquery", specifier = ">=2.7.0" },
+    { name = "manifold3d", specifier = ">=3.5.2" },
     { name = "numpy", specifier = ">=2.2.6" },
-    { name = "pyquaternion", specifier = ">=0.9.9" },
+    { name = "polyscope", specifier = ">=2.6.1" },
     { name = "scipy", specifier = ">=1.15.3" },
 ]
 
@@ -493,6 +495,35 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/98/a29133b4728671a175f7d616fab8b1c6e1d8c269d1523581d3160697bfb1/llvmlite-0.48.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1d9f952dff6c350c529997423d4fa43abae9722a884ac7ffafc37a3af676e7db", size = 59890119, upload-time = "2026-07-01T18:42:33.88Z" },
     { url = "https://files.pythonhosted.org/packages/1a/cf/7aac11a1f1c7ec54b60c7f6814e87561fb6b55b2f290455d7941eb113420/llvmlite-0.48.0-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:054aa7d46595935565f276cf0c1659b4f10929c996dd4a606875fae26fba2a23", size = 58343460, upload-time = "2026-07-01T18:42:29.545Z" },
     { url = "https://files.pythonhosted.org/packages/db/41/b96f440c7df5ebba07872cad4e30fbc3560387755b1ea0b629adb76d5ca8/llvmlite-0.48.0-cp314-cp314t-win_amd64.whl", hash = "sha256:d0b3c61aac83b42fb48cc96bffbf57c81b82b2aa92276b7ed6420c814629a99a", size = 42986383, upload-time = "2026-07-01T18:42:37.544Z" },
+]
+
+[[package]]
+name = "manifold3d"
+version = "3.5.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/36/5b11c97e56d2101b1c6e311580f2546dd0d1cf0fbb167ec59e122e195ced/manifold3d-3.5.2.tar.gz", hash = "sha256:8d445798ba5f86efae18e0dca6cb71823165f0887767a274d7c14ed63ab64648", size = 305761, upload-time = "2026-06-27T05:26:54.353Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/99/52fad7c5c9fb4d39570121cc7ab7cb1630e79d412bbfffd2ad37a10e5d40/manifold3d-3.5.2-cp313-cp313-macosx_10_14_universal2.whl", hash = "sha256:ba8aadabb41bc5630df42a6eab9fa4d4c55e1321e5885133599145f6d66e5801", size = 1842450, upload-time = "2026-06-27T05:26:18.702Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/0a/3855c845c20903322ebf70754d767ca49f4bb198884c8b22ca8e4b9018b3/manifold3d-3.5.2-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:ccda91f02b6a46ccdc06d00707740c13442c7d93f6f25fc73e1ab70697531569", size = 1004769, upload-time = "2026-06-27T05:26:20.892Z" },
+    { url = "https://files.pythonhosted.org/packages/45/2a/4ad7c056d10543ba40a343e13609a62fe3a91ad5472d9a6d8788e4aeba01/manifold3d-3.5.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:36e68dc76087aa214546d5aee3a1ad7956b6759aa24d07e864f15c11f6139b16", size = 884398, upload-time = "2026-06-27T05:26:22.374Z" },
+    { url = "https://files.pythonhosted.org/packages/98/f8/cc6f84b99ae0c47c0d38b87cb2d1043a2a5a40b33bd9701b9b12124286f3/manifold3d-3.5.2-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cedd81ddd636aacdea0fc20e1b0ea6e04880c7297b72a5dc67c49ef8373683d0", size = 1317125, upload-time = "2026-06-27T05:26:23.959Z" },
+    { url = "https://files.pythonhosted.org/packages/43/71/3399b1f669e43391bbd199041bf3baf2f92c1fe374791c622dfb80d7c1fa/manifold3d-3.5.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bbfd7a445aeeb24d1e17749e742c637db69fd15f6005ace3fb1a8bfa52beae45", size = 1426995, upload-time = "2026-06-27T05:26:25.6Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/0e/be754a34d1b39a43fe7d3d444ccc5f43dc95a918a74b9d1167e7842b42ed/manifold3d-3.5.2-cp313-cp313-win_amd64.whl", hash = "sha256:87c812f45979775b9345b1112f630253f043cfbcc53252f4002712c6a48e54ae", size = 1035776, upload-time = "2026-06-27T05:26:27.017Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/5b/86a21b6c3900e508fe2e31b075a01120fa99954d00f2c977e93bcec3a49c/manifold3d-3.5.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:dab5be20f185f696d72c61dcfaec228c7ca5dd73a9ebe6872efcc4eca19eaae2", size = 1842135, upload-time = "2026-06-27T05:26:28.443Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/cf/9c705c4459f18ac05fb982abf6f994f22efbf3c19253e2ae232c4ba9241c/manifold3d-3.5.2-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:257d7b8b8627345a4bad1962f24a9ce9dee24e06ad5fb6a2a5a3b588117c1088", size = 1004516, upload-time = "2026-06-27T05:26:29.737Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/a0/0bae2c61cac29781f9733d2619cc2accbee1a3599605ef6e52a2dddc85b3/manifold3d-3.5.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d406164d8a2212cf9d7dab026eac506ec6b7ca4c9364ae2ed2ee61d6d44f5538", size = 884232, upload-time = "2026-06-27T05:26:31.146Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/ea/4e139febba8f84be4a84f99e8a3dcca88d6b32c86913fefae9f9edc87a1f/manifold3d-3.5.2-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1a44236a98d27104c46e3375552fcbf6a2b7e1dce054c0a8d4f75169dc89a406", size = 1318305, upload-time = "2026-06-27T05:26:32.615Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/db/ad2cdc02b95981c09a6fc4b3133ea709a46a03c8040fb793e9a2f0437476/manifold3d-3.5.2-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a5d0fd4de568f2bb0f616ce3f6583abf44e72c3ecaed49570a21f2a35afc3eac", size = 1427309, upload-time = "2026-06-27T05:26:33.995Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/f6/3b204f373a8ac7e97b11978956861dfee610dfc19e953282caa0e7b499db/manifold3d-3.5.2-cp314-cp314-win_amd64.whl", hash = "sha256:771216b3c291bb2bf0a3aadb991ed8d27bfc02505740b478fad260cf846b4346", size = 1068095, upload-time = "2026-06-27T05:26:35.505Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/40/a2476ab8426579b5bf91057ec28378fa1f7c1501c5bb90d3ad400012383f/manifold3d-3.5.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:b2425f101db1c51162e105bfe518a827c19d9df477e8b5ccf7fb71540cab2eff", size = 1852696, upload-time = "2026-06-27T05:26:36.816Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/30/caf0b3a521d8892a05f78cd8e8745e21324a6afed1f2bc907664cc9c1aae/manifold3d-3.5.2-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:ee15355cb134d7fa7df10ff20f5a6e3407610bf43bf539738a164efc368f24aa", size = 1010544, upload-time = "2026-06-27T05:26:38.228Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/93/c81d01680981f6cf6e14eb0b9d66feb30c0666cab56e0283fb8f0b0b2e71/manifold3d-3.5.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:10af126693c3da44bda9ff4dfc0e1426845e4e6c1afe953c2b23479cd0ac05ab", size = 889788, upload-time = "2026-06-27T05:26:39.656Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/11/5f98810e0f89526b02ed91bdcf0ab77a28e5e837bba098c914f86840aeb4/manifold3d-3.5.2-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8555bc5c6a7ea73c3fe7bce2b42127232540f7201cbe8ef96bf58669ef551e5a", size = 1326418, upload-time = "2026-06-27T05:26:41.206Z" },
+    { url = "https://files.pythonhosted.org/packages/94/13/00b80bfdb33e00af20d667d112950237b8d63f23e1723916e54427b6849e/manifold3d-3.5.2-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d1bff6005d78728dcd4808f40f3f9a21cf41dd76a157e6ceaefd76fdaff08f3b", size = 1433354, upload-time = "2026-06-27T05:26:42.686Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/76/b806053e447db617f2a0bb75c9f7c2049b21b741424d7d8b4dfae18a7ccc/manifold3d-3.5.2-cp314-cp314t-win_amd64.whl", hash = "sha256:e94adfc225f259aab8f9728a1bcbc102e8d58eb4dfe8c2ce161398666cb22dcb", size = 1070483, upload-time = "2026-06-27T05:26:44.237Z" },
 ]
 
 [[package]]
@@ -844,6 +875,39 @@ wheels = [
 ]
 
 [[package]]
+name = "polyscope"
+version = "2.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f5/dc/622c79b24104da8a8162d21e728e126cf86f8d44e9799d929e1a2ea4bf07/polyscope-2.6.1.tar.gz", hash = "sha256:f7806a951f8a16376adc431300e48f856808ee80ab5cb7597db055cbc3b6ab21", size = 16946275, upload-time = "2026-02-26T23:34:32.265Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/7b/e2f106e4ff9818155abd53e1f9b1feade237a6d201627461ec468f8be2df/polyscope-2.6.1-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:b09955d3c9a867cb361138bc334796a56fa70396dd54960622671ba9ed7cb777", size = 7724100, upload-time = "2026-02-26T23:33:29.197Z" },
+    { url = "https://files.pythonhosted.org/packages/48/e4/946997877e6b65daffee9a93732d83be61ee6b0ee885662761b3d8ac72e5/polyscope-2.6.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:f3aab3920373cda3d3f0bf080641937471cdf5bd0d46cebd6d509a8be6782473", size = 7563606, upload-time = "2026-02-26T23:33:31.718Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/6e/ca9244f2fd527584009b9fd4d103a8e74453cff85e258db181ef91fe315d/polyscope-2.6.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d34bf22148e481972bdc5575d7fab3180d07c7c3a14cc6ffdf9e0f0a0bf1466c", size = 8324957, upload-time = "2026-02-26T23:33:33.616Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/08/b87ba04af1e5558d7e6b1cba79e3b3252d0c18c2bb43d38a867bde04ae12/polyscope-2.6.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:997d2d9e5e80e9f2b73d69fae7c46a30d040d1b342845f7c3b3abed22a189ae1", size = 8858835, upload-time = "2026-02-26T23:33:35.449Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/7f/4fbf7316e39d88b07612a600e228f58db3fd9249df109de88dd2ab8967cd/polyscope-2.6.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:5c91f7d753af40057b47adf367c180ded65e532f757b4d51c66efe6ff27e386a", size = 9808313, upload-time = "2026-02-26T23:33:38.242Z" },
+    { url = "https://files.pythonhosted.org/packages/83/20/21db6d916ef78414dd4acf1cf995101521b431598e6dffc7cb9445bbd560/polyscope-2.6.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:17129e85d51c7c4913084db22cdff5c3c1f8900996c3618808c0c1c6a525d144", size = 10250268, upload-time = "2026-02-26T23:33:40.583Z" },
+    { url = "https://files.pythonhosted.org/packages/89/43/fb61019fe9d11366ecf498c786f0ba38255421bba50c54d12150b0df693f/polyscope-2.6.1-cp313-cp313-win_amd64.whl", hash = "sha256:50e5a774bfb427fd63f3353292397a3c093b77dd4bf1c2d64e4019f89b6d5a96", size = 9938658, upload-time = "2026-02-26T23:33:42.899Z" },
+    { url = "https://files.pythonhosted.org/packages/82/44/e71d8820f656dd3d01df69be63500afae07ffc0c13ed89ba3b75b162c458/polyscope-2.6.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:65f18063eebc018f72691b46a3d44adfbfb79efce4058cb1afd3a08ac4dafdb5", size = 7724600, upload-time = "2026-02-26T23:33:45.136Z" },
+    { url = "https://files.pythonhosted.org/packages/09/4d/95e9fc4554635b2c6984fe7003e86f7502f132c3d63212130844f91dccdc/polyscope-2.6.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a3d5209ad6f9ac910442df026fba5517d9177e0f06b2685e233cae5e3cef33a4", size = 7563691, upload-time = "2026-02-26T23:33:46.876Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/fc/53b6135a978d0ef4b8b6358b122a7ee5161f33732ddc01bfa56b2bd58a96/polyscope-2.6.1-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ba32deca0b1a87d933aa5964059c25ad151a07f5a7ca164a5e435876b770f71e", size = 8325611, upload-time = "2026-02-26T23:33:48.906Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/03/fe567601abc012b5baa93bc596853135eba4c597f8b8a2b5d8ad86e756f7/polyscope-2.6.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7494b7da2fee2d1f6511b5d95543a41c1221ebd22bf72a78acf07623ea4fdb8c", size = 8859144, upload-time = "2026-02-26T23:33:50.851Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/dd/14964cdf4a6336938e11822abbe9f756bd8b495f09b31316e35bbcd1f289/polyscope-2.6.1-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:57c67b84c232fca8e2cab5d0f5f1dc1b4a24e4a5b324c2bbdc13048b7d9315b3", size = 9808537, upload-time = "2026-02-26T23:33:53.102Z" },
+    { url = "https://files.pythonhosted.org/packages/51/b0/17a4c0fa879692430f937ecbb3427e06dddd19390d26a107355545bb6784/polyscope-2.6.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:ce451d7c77860944877ea42bc1d8e4a959968f9b61355075150cc7c51c18f9cf", size = 10250955, upload-time = "2026-02-26T23:33:55.588Z" },
+    { url = "https://files.pythonhosted.org/packages/12/96/63506b65eb7bdf3ce7f4cfab4d30b0017eb48dc9464fadc051015508a937/polyscope-2.6.1-cp314-cp314-win_amd64.whl", hash = "sha256:3dee233aa9e8d1d7034f052f28a8dfa0c48f563da47aa02f1a9842f94638d89b", size = 10094458, upload-time = "2026-02-26T23:33:58.057Z" },
+    { url = "https://files.pythonhosted.org/packages/33/50/0db33586428032d3101a3813440b6d80170b91a159f210c1f520917aa805/polyscope-2.6.1-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:621599eadee068f7651df727f7860c3b5d1e6cbbae94bbacb2fff7d1c2acefc4", size = 7736026, upload-time = "2026-02-26T23:34:00.594Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/a6/c4d447b7651abe7db2e203834d0eab15a1472cb895ad0d9d7ee013a9214a/polyscope-2.6.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:9c30168e49192b8323f56793cb333dc1ab418f20ea1830330385969c2cd4fdb0", size = 7571461, upload-time = "2026-02-26T23:34:02.77Z" },
+    { url = "https://files.pythonhosted.org/packages/65/5a/372346f5c6f189aed1a8e7980b06630f12abe74c06a0c34ac6d4e581d165/polyscope-2.6.1-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c4f2c729d0ec325c8379a14caedd78c2ad4067c63e3aa3ed30da8872202a5c49", size = 8339326, upload-time = "2026-02-26T23:34:04.948Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/88/6e55200e76ad3358d1edf9e84dce4ab6c687c67eb412a0def78583c13f7b/polyscope-2.6.1-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bf8080a1222d2e1dee796e59eabb5fc70e37535e2ddf17b1a9a9d1819ece0e97", size = 8873826, upload-time = "2026-02-26T23:34:06.846Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/da/06efd908898fce870ef1f058ac80f35c96379a478f27eb707f2d583fb2da/polyscope-2.6.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:8400c1a23a79750df049c42b4ba5876767a07ff12b11eb72acc5874ea16a5a10", size = 9825762, upload-time = "2026-02-26T23:34:08.911Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/1c/ad5f7c591198ce0405604edf3b40d2628d68871a3298c36f6c66ce3d2819/polyscope-2.6.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6046b718bda5db995ad769824e5c785713e5f8ea53894706091ec57c033a160f", size = 10262814, upload-time = "2026-02-26T23:34:11.07Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/00/fceab71136a0cc8e64aa3a6c99371ce1c799a08093c9b3dd29a209b19f5e/polyscope-2.6.1-cp314-cp314t-win_amd64.whl", hash = "sha256:b62e09ab2beaa5dae44acd165ce25a301d4df16f9daca46cbe2cd488d327efe1", size = 10133788, upload-time = "2026-02-26T23:34:13.668Z" },
+]
+
+[[package]]
 name = "propcache"
 version = "0.5.2"
 source = { registry = "https://pypi.org/simple" }
@@ -927,18 +991,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
-]
-
-[[package]]
-name = "pyquaternion"
-version = "0.9.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/3d092aa20efaedacb89c3221a92c6491be5b28f618a2c36b52b53e7446c2/pyquaternion-0.9.9.tar.gz", hash = "sha256:b1f61af219cb2fe966b5fb79a192124f2e63a3f7a777ac3cadf2957b1a81bea8", size = 15530, upload-time = "2020-10-05T01:31:30.327Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/b3/d8482e8cacc8ea15a356efea13d22ce1c5914a9ee36622ba250523240bf2/pyquaternion-0.9.9-py3-none-any.whl", hash = "sha256:e65f6e3f7b1fdf1a9e23f82434334a1ae84f14223eee835190cd2e841f8172ec", size = 14361, upload-time = "2020-10-05T01:31:37.575Z" },
 ]
 
 [[package]]
