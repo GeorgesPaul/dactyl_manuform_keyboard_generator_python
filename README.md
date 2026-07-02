@@ -17,7 +17,11 @@ Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/). Dependencies are man
 uv run dactylgui.py
 ```
 
-Opens a 3D viewer with sliders for rows, columns, curvature, tenting, thumb key placement and more. The model rebuilds in about 50 ms on every slider change, so it follows the sliders live. Use the buttons to export the current shape as STL (instant, from the mesh pipeline) or STEP (slower, through CadQuery).
+Opens a 3D viewer with sliders for rows, columns, curvature, tenting, thumb key placement, wall thickness and more. The model rebuilds in about 50 ms on every slider change, so it follows the sliders live.
+
+- Both halves are shown. By default they mirror each other and one set of sliders drives both; uncheck "Mirror halves" to configure each half independently with its own sliders.
+- The pinky column width can be one value for all rows or set per row (uncheck "Same pinky width for all rows").
+- Use the buttons to export both halves as STL (instant, from the mesh pipeline) or STEP (slower, through CadQuery).
 
 ## STEP file generation
 

@@ -156,6 +156,10 @@ class Dact(object):
         keyswitch_hole_width = 14
         keycap_space : float   = 19 # desired total clearance width for key caps (width of keycap base + desired clearance around cap base)
         keycap_pinky_space : float = 28
+        # Optional per row widths for the pinky column (row 0 = back row).
+        # When None every pinky key uses keycap_pinky_space; a list overrides
+        # the width row by row (missing rows fall back to keycap_pinky_space).
+        pinky_row_widths : Optional[List[float]] = None
         extra_width: float = 2.1  # extra width between columns in addition to keycap_space
         extra_height: float = 1.0  # original= 0.5 extra space between rows in addition to keycap_space
         switch_plate_wall_thickness : float     = 1.5 #TODO: use as input for functions that are now hardcoded to 1.5
@@ -306,6 +310,19 @@ class Dact(object):
     @cached_property
     def screw_insert_screw_holes(self):
         return self.screw_insert_all_shapes(1.7, 1.7, 350)
+
+    # Total clearance width of the pinky key on the given row. Uses the per
+    # row override list when the config provides one, otherwise the global
+    # keycap_pinky_space.
+    def pinky_space(self, row):
+        widths = self.config.pinky_row_widths
+        if widths is not None and 0 <= row < len(widths):
+            return widths[row]
+        return self.config.keycap_pinky_space
+
+    # Frame width (per side) of the pinky key switch frame on the given row.
+    def pinky_frame_width(self, row):
+        return (self.pinky_space(row) - self.config.keyswitch_hole_width) / 2
 
     def print_fu(self, *args):
         if self.config.script_verbose_func:
@@ -501,10 +518,12 @@ class Dact(object):
 
         return key_frame
 
-    def sa_cap(self, pinky = False):
+    def sa_cap(self, pinky = False, row = 0):
         # MODIFIED TO NOT HAVE THE ROTATION.  NEEDS ROTATION DURING ASSEMBLY
         if pinky:
-            sa_length = self.config.mount_pinky_width
+            # cap is 1 mm narrower than the key clearance width (matches the
+            # old mount_pinky_width = keycap_pinky_space - 1 default)
+            sa_length = self.pinky_space(row) - 1.0
         else:
             sa_length = self.config.mount_width
         key_depth = 12.0
@@ -541,11 +560,11 @@ class Dact(object):
         else:
             key_cap = self.hull_from_shapes((k1, k2))
 
-        # # Georges: TODO: check this. Might be wrong.
         x_sh = 0
         if pinky:
-            # shift pinky key half of normal keycap width to the right
-            x_sh = self.config.mount_width / 2
+            # center the cap on the widened pinky key (which extends to the
+            # right of the normal mount area)
+            x_sh = (sa_length - self.config.mount_width) / 2
 
         key_cap = key_cap.translate((x_sh, 0, 5 + self.config.plate_thickness))
         # key_cap = key_cap.color((220 / 255, 163 / 255, 163 / 255, 1))
@@ -667,7 +686,7 @@ class Dact(object):
         xyz: List[float] = []
 
         wide_pinky = self.config.use_wide_pinky
-        pinky_width = self.config.keycap_pinky_space - self.config.mount_width
+        pinky_width = self.pinky_space(row) - self.config.mount_width
 
         if key_loc == "tr":
             # in case of wide pinky keys:
@@ -866,10 +885,11 @@ class Dact(object):
                     x_sh_br = self.config.switch_plate_wall_thickness
                     x_sh_bl = 0
                 elif ((column == self.config.ncols - 1) and (use_wide_pinky)):
-                    x_sh_h_tl = c
-                    x_sh_h_tr = -c
-                    x_sh_h_br = -c
-                    x_sh_h_bl = c
+                    c_row = self.pinky_frame_width(row)  # pinky width can differ per row
+                    x_sh_h_tl = c_row
+                    x_sh_h_tr = -c_row
+                    x_sh_h_br = -c_row
+                    x_sh_h_bl = c_row
                     # add corners of pinkey keys to array key corner vectors/points
                     self.key_pt[column, row, tl] = self.get_key_point(column, row, "tl", x_sh = x_sh_tl, z_sh=z_sh_zero)
                     self.key_pt[column, row, tr] = self.get_key_point(column, row, "tr", x_sh = x_sh_tr, z_sh=z_sh_zero)
@@ -944,14 +964,18 @@ class Dact(object):
         else:
             lastrow = self.config.nrows
 
-        # Build the two cap variants once and place transformed copies.
+        # Build each distinct cap variant once and place transformed copies.
+        # Pinky caps can differ per row, so they are cached per row width.
         cap = self.sa_cap()
-        pinky_cap = self.sa_cap(pinky=True) if use_wide_pinky else None
+        pinky_caps = {}
 
         for column in range(self.config.ncols):
             for row in range(lastrow):
                 if use_wide_pinky and (column == self.config.ncols - 1):
-                    placed = self.key_place(pinky_cap, column, row)
+                    width = self.pinky_space(row)
+                    if width not in pinky_caps:
+                        pinky_caps[width] = self.sa_cap(pinky=True, row=row)
+                    placed = self.key_place(pinky_caps[width], column, row)
                 else:
                     placed = self.key_place(cap, column, row)
 
@@ -2651,12 +2675,42 @@ class Dact(object):
         out_pts = self.mitre_offset(pts, offset)
         return cq.Wire.makePolygon(self.pts_to_vectors(out_pts.tolist())).close()
 
-    # Ring definitions for the outer wall lofts as (xy_offset, z_shift) pairs
-    # applied to the wall outline polygon. The first loft forms the top lip of
-    # the wall, the second the outer skirt going down (everything below z=0 is
-    # cut off later). Shared by walls_test and the mesh pipeline (dactylmesh).
-    WALL_LOFT_1 = [(0.01, 0), (1.5, 3), (8, -5), (6, -5)]
-    WALL_LOFT_2 = [(6, -5), (8, -5), (50, -100), (12, -100)]
+    # Ring definitions for the outer wall loft as (xy_offset, z_shift) pairs
+    # applied to the wall outline polygon. The wall is a single closed tube
+    # with a rectangular cross section: the inner surface sits at the plate
+    # edge, the outer surface wall_thickness further out, and both flare
+    # outward by the same wall_xy_offset on the way down, so the wall
+    # thickness stays the same everywhere. The old design used two separate
+    # lofts whose shells overlapped (visible as a double wall at the back)
+    # and whose inner and outer surfaces flared by different amounts (visible
+    # as walls much thicker at the bottom than at the top). Everything below
+    # z=0 is cut off later. Shared by walls_test and the mesh pipeline.
+    def wall_loft_specs(self):
+        t = self.config.wall_thickness
+        flare = self.config.wall_xy_offset
+        drop = 100.0  # reaches far below z=0; the trim plane makes the real bottom
+        return [[
+            (0.01, 0.0),            # inner surface, top (at the plate edge)
+            (t, 0.0),               # outer surface, top
+            (t + flare, -drop),     # outer surface, bottom
+            (0.01 + flare, -drop),  # inner surface, bottom
+        ]]
+
+    # Corner point of the full thumb key plate (including the double_plate
+    # extensions) for thumb key "tr" or "tl". sx and sy pick the corner
+    # (+1/-1), z is the height in the thumb plate's local coordinates.
+    def thumb_plate_corner(self, which, sx, sy, z):
+        ph = (self.config.thumb_plate_length - self.config.keycap_space) / 2
+        x = sx * self.config.keycap_space / 2
+        y = sy * (self.config.mount_height / 2 + ph)
+        th = self.config.thumb_keys
+        rot = getattr(th, which + "_rot")
+        loc = getattr(th, which + "_loc")
+        p = np.array([x, y, z], dtype=float)
+        p = CalcUtils.rotate_x(p, CalcUtils.deg2rad(rot[0]))
+        p = CalcUtils.rotate_y(p, CalcUtils.deg2rad(rot[1]))
+        p = CalcUtils.rotate_z(p, CalcUtils.deg2rad(rot[2]))
+        return list(p + np.asarray(self.thumb_origin, dtype=float) + np.asarray(loc, dtype=float))
 
     # Collects the outer boundary of the key plate area as an ordered, closed
     # polygon (list of [x, y, z] points). Requires key_pt to be filled, so
@@ -2682,12 +2736,31 @@ class Dact(object):
                     pts_bot.append(list(self.key_pt[column, row, bl, :]))
                     pts_bot.append(list(self.key_pt[column, row, br, :]))
 
-        return [*pts_left[::-1], *pts_top, *pts_right, *pts_bot[::-1]]
+        outline = [*pts_left[::-1], *pts_top, *pts_right, *pts_bot[::-1]]
+
+        # Thumb cluster detour: the outline (and with it the walls) also wraps
+        # around the two thumb key plates instead of cutting straight across
+        # the bottom left corner and leaving the thumb plate floating. The
+        # points run clockwise like the rest of the outline: from the end of
+        # the bottom edge out around the right thumb plate, along the bottom
+        # of both plates, and up the left side back to the left edge start.
+        if self.config.thumb_count >= 2:
+            z = self.config.plate_thickness  # thumb plate top in local coords
+            outline += [
+                self.thumb_plate_corner("tr", +1, +1, z),  # tr plate, top right
+                self.thumb_plate_corner("tr", +1, -1, z),  # tr plate, bottom right
+                self.thumb_plate_corner("tr", -1, -1, z),  # tr plate, bottom left
+                self.thumb_plate_corner("tl", +1, -1, z),  # tl plate, bottom right
+                self.thumb_plate_corner("tl", -1, -1, z),  # tl plate, bottom left
+                self.thumb_plate_corner("tl", -1, +1, z),  # tl plate, top left
+            ]
+
+        return outline
 
     def walls_test(self):
         outline = np.array(self.wall_outline_points())
         shape = cq.Workplane('XY')
-        for spec in (self.WALL_LOFT_1, self.WALL_LOFT_2):
+        for spec in self.wall_loft_specs():
             wires = []
             for off, dz in spec:
                 ring = self.mitre_offset(outline, off) + np.array([0.0, 0.0, dz])
@@ -2748,15 +2821,12 @@ class Dact(object):
         #s2 = s2.union(self.rj9_holder())
         #self.print_model(s2, "add rj9 holder to shape")
 
-        # Add s2 to shape
-        #shape = shape.union(s2, tol=.01)
+        # Add the walls to the model
         try:
-            #shape = shape.union(s2, tol=.01)
-            #self.print_model(shape, "add s2 to shape")
-            print("add s2 disabled")
+            shape = shape.union(s2, clean=False)
         except Exception:
             traceback.print_exc()
-            sys.exit()
+            print("Could not fuse the walls into the model; continuing without them")
 
         # TODO: add switch for wire posts setting?
         # shape = shape.union(wire_posts())

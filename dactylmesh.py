@@ -11,7 +11,7 @@
 # CadQuery pipeline remains the source of truth for STEP export.
 
 import numpy as np
-from manifold3d import Manifold, Mesh, OpType
+from manifold3d import Manifold, OpType
 
 
 def hull(points):
@@ -22,34 +22,6 @@ def mesh_arrays(manifold):
     # returns (vertices float32 (n,3), triangles int (m,3)) for a viewer
     m = manifold.to_mesh()
     return np.asarray(m.vert_properties)[:, :3], np.asarray(m.tri_verts)
-
-
-def solid_from_rings(rings):
-    # Builds a closed "tube" solid through a cycle of rings (equal point
-    # counts). Consecutive rings are connected with quads (two triangles per
-    # quad); the last ring connects back to the first, closing the surface
-    # like a torus. Used for the wall lofts.
-    rings = [np.asarray(r, dtype=np.float64) for r in rings]
-    k = len(rings)
-    n = len(rings[0])
-    verts = np.concatenate(rings)
-    tris = []
-    for i in range(k):
-        a = i * n
-        b = ((i + 1) % k) * n
-        for j in range(n):
-            j1 = (j + 1) % n
-            tris.append((a + j, a + j1, b + j1))
-            tris.append((a + j, b + j1, b + j))
-    tris = np.array(tris, dtype=np.uint32)
-
-    # orient all faces outward: flip the winding if the signed volume is negative
-    v = verts[tris]
-    signed_vol = np.einsum('ij,ij->', v[:, 0], np.cross(v[:, 1], v[:, 2])) / 6.0
-    if signed_vol < 0:
-        tris = np.ascontiguousarray(tris[:, ::-1])
-
-    return Manifold(Mesh(vert_properties=verts.astype(np.float32), tri_verts=tris))
 
 
 def _box_pts(x0, x1, y0, y1, z0, z1):
@@ -152,7 +124,7 @@ class MeshPipeline:
             # columns 2 and 3 and the wide pinky column
             wide = c.use_wide_pinky and col == c.ncols - 1
             if corner in ("tr", "br"):
-                x = mw / 2 + ((c.keycap_pinky_space - c.keycap_space) if wide else 0)
+                x = mw / 2 + ((self.d.pinky_space(row) - c.keycap_space) if wide else 0)
             else:
                 x = -(mw / 2)
                 if col == 2:
@@ -205,13 +177,24 @@ class MeshPipeline:
         return solids
 
     def walls(self):
-        # mesh version of walls_test: the same offset rings, but built as
-        # closed triangle tubes instead of OCCT lofts
+        # Mesh version of walls_test using the same offset rings. Instead of
+        # one closed tube, the wall is built as a union of one convex hull per
+        # outline edge (the "ribbon" between all rings along that edge).
+        # Adjacent ribbons share their corner cross sections, so the union is
+        # watertight, and local self intersections of the offset polygon at
+        # concave corners are simply absorbed by the union instead of
+        # producing a broken tube.
         outline = np.asarray(self.d.wall_outline_points(), dtype=float)
         solids = []
-        for spec in (self.d.WALL_LOFT_1, self.d.WALL_LOFT_2):
-            rings = [self.d.mitre_offset(outline, off) + np.array([0.0, 0.0, dz]) for off, dz in spec]
-            solids.append(solid_from_rings(rings))
+        for spec in self.d.wall_loft_specs():
+            rings = np.stack([
+                self.d.mitre_offset(outline, off) + np.array([0.0, 0.0, dz])
+                for off, dz in spec
+            ])  # shape (rings, outline points, 3)
+            n = rings.shape[1]
+            for j in range(n):
+                j1 = (j + 1) % n
+                solids.append(hull(np.concatenate([rings[:, j, :], rings[:, j1, :]])))
         return solids
 
     def caps(self):
@@ -233,14 +216,19 @@ class MeshPipeline:
             return np.asarray(pts, dtype=float) + lift
 
         cap = cap_pts(c.mount_width)
-        pinky_cap = cap_pts(c.mount_pinky_width) + np.array([c.mount_width / 2, 0.0, 0.0])
         thumb_cap = cap @ np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]).T  # rotated 90 degrees
+
+        def pinky_cap(row):
+            # 1 mm narrower than the key clearance width, centered on the
+            # widened key (which extends to the right of the mount area)
+            sa_length = self.d.pinky_space(row) - 1.0
+            return cap_pts(sa_length) + np.array([(sa_length - c.mount_width) / 2, 0.0, 0.0])
 
         solids = []
         for column in range(c.ncols):
             for row in range(self.d.lastrow):
                 if c.use_wide_pinky and column == c.ncols - 1:
-                    local = pinky_cap
+                    local = pinky_cap(row)
                 else:
                     local = cap
                 solids.append(hull(self.key_pts(column, row, local)))
